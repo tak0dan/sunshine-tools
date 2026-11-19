@@ -9,7 +9,8 @@ if [ "$(id -u)" -ne 0 ]; then exec sudo "$0" "$@"; fi   # needs root to read the
 Y=$'\e[38;5;220m'; G=$'\e[32m'; R=$'\e[31m'; D=$'\e[2m'; B=$'\e[1m'; N=$'\e[0m'
 [ -r /usr/local/lib/sunshine/ui.sh ] && . /usr/local/lib/sunshine/ui.sh || { loc() { printf "%s" "$*"; }; t() { printf "%s" "${2:-$1}"; }; }
 fails=0; warns=0; fixed=0
-LIVE=0; [ -d /run/archiso ] && LIVE=1      # the live ISO: root is a RAM overlay, there is no /boot, no GRUB, no snapshots to check
+LIVE=0; [ -d /run/archiso ] && LIVE=1
+RESCUE=0; [ -n "${SUNSHINE_IN_RESCUE:-}" ] && { RESCUE=1; LIVE=0; }   # running inside sunshine-rescue's chroot: the installed system's files, but no running systemd or network state      # the live ISO: root is a RAM overlay, there is no /boot, no GRUB, no snapshots to check
 ok()   { [ "$Q" = 1 ] || printf '  %s✔%s %s\n' "$G" "$N" "$(loc "$*")"; }
 warn() { warns=$((warns+1)); printf '  %s!%s %s\n' "$Y" "$N" "$(loc "$*")"; }
 bad()  { fails=$((fails+1)); printf '  %s✘%s %s\n' "$R" "$N" "$(loc "$*")"; }
@@ -33,20 +34,24 @@ else bad "package keyring missing or empty"
 if out=$(pacman -Dk 2>&1); then ok "package database consistent"; else bad "package database problem: $(echo "$out" | head -2 | tr '\n' ' ')"; fi
 for r in $(pacman-conf --repo-list 2>/dev/null); do
   db=/var/lib/pacman/sync/$r.db
-  if [ ! -s "$db" ]; then dbs_bad="$dbs_bad $r"; elif ! bsdtar -tf "$db" >/dev/null 2>&1; then dbs_bad="$dbs_bad $r"; rm -f "$db"; fi
+  if [ ! -s "$db" ]; then dbs_bad="$dbs_bad $r"; elif ! bsdtar -tf "$db" >/dev/null 2>&1; then dbs_bad="$dbs_bad $r"; [ $FIX = 1 ] && curl -fsI --max-time 6 https://archlinux.org >/dev/null 2>&1 && rm -f "$db"; fi   # only with --fix and only when it can be downloaded again
 done
+for r in core extra; do grep -q "^\[$r\]" /etc/pacman.conf 2>/dev/null || bad "pacman.conf does not list the [$r] repository"; done
 if [ -n "${dbs_bad:-}" ]; then warn "package databases missing or damaged:$dbs_bad"; [ $FIX = 1 ] && pacman -Sy >/dev/null 2>&1 && fx "package databases downloaded again"; else ok "package databases are intact"; fi
 # a partial upgrade (pacman -Sy, then installing something, without -u) is the classic way to break Arch
-if [ -r /var/log/pacman.log ] && awk '/synchronizing package lists/{sync=1} /starting full system upgrade/{sync=0} /\[ALPM\] (installed|upgraded) /{ if (sync) bad=1 } END{exit !bad}' /var/log/pacman.log; then
-  warn "packages were installed after a database refresh without a full upgrade (partial upgrade): sunshine-update fixes it"; [ $FIX = 1 ] && pacman -Syu --noconfirm >/tmp/sunshine-partial.log 2>&1 && fx "system fully upgraded"
+if [ -r /var/log/pacman.log ] && awk '/synchronizing package lists/{sync=1} /starting full system upgrade/{sync=0} /\[ALPM\] upgraded /{ if (sync) bad=1 } END{exit !bad}' /var/log/pacman.log; then
+  warn "packages were installed after a database refresh without a full upgrade (partial upgrade): sunshine-update fixes it"; [ $FIX = 1 ] && echo "    $(loc "not repaired automatically (a full upgrade is big): run sunshine-update now")"
 else ok "no partial upgrade detected"; fi
 # the packages without which the system cannot boot or log in (a broken removal, a bad cleanup): --fix puts them back from the repositories
 core_missing=
 for p in base linux-firmware mkinitcpio grub sudo networkmanager sddm plasma-desktop pipewire pacman sunshine-base; do pacman -Qq "$p" >/dev/null 2>&1 || core_missing="$core_missing $p"; done
-pacman -Qq linux linux-lts linux-zen linux-hardened linux-cachyos >/dev/null 2>&1 || core_missing="$core_missing linux"
+pacman -Qq 2>/dev/null | grep -qE '^linux(-lts|-zen|-hardened|-rt|-rt-lts|-cachyos[a-z-]*)?$' || core_missing="$core_missing linux"
 if [ -z "$core_missing" ]; then ok "core packages are installed"
 else bad "core packages missing:$core_missing"
-  if [ $FIX = 1 ]; then pacman -S --noconfirm --needed $core_missing >/tmp/sunshine-core.log 2>&1 && fx "reinstalled:$core_missing" || { bad "could not reinstall (see /tmp/sunshine-core.log)"; tail -3 /tmp/sunshine-core.log; }; fi
+  if [ $FIX = 1 ]; then
+    ow=(); case " $core_missing " in *" sunshine-base "*) ow=(--overwrite '*');; esac      # its files are already on the disk (shipped in the image): taking ownership is what is wanted
+    pacman -S --noconfirm --needed "${ow[@]}" $core_missing >/tmp/sunshine-core.log 2>&1 && fx "reinstalled:$core_missing" || { bad "could not reinstall (see /tmp/sunshine-core.log)"; tail -3 /tmp/sunshine-core.log; }
+  fi
 fi
 for r in community testing staging extra-testing core-testing multilib-testing; do grep -q "^\[$r\]" /etc/pacman.conf 2>/dev/null && { bad "pacman.conf has the obsolete or unstable repository [$r]"; [ $FIX = 1 ] && /usr/local/bin/sunshine-fix-pacman >/dev/null 2>&1 && fx "obsolete repositories removed"; }; done
 n=$(find /etc -name '*.pacnew' 2>/dev/null | wc -l)
@@ -141,14 +146,23 @@ fi
 if [ "$(findmnt -no FSTYPE / 2>/dev/null)" = btrfs ]; then
   e=$(btrfs device stats / 2>/dev/null | awk '{s+=$2} END{print s+0}'); [ "${e:-0}" -gt 0 ] && warn "btrfs counted $e device error(s): run sunshine-doctor on a schedule and consider a scrub (sudo btrfs scrub start /)" || ok "btrfs reports no device errors"
 fi
-[ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)" = yes ] && ok "clock is synchronised" || warn "clock is not synchronised (certificates and updates can fail)"
-swapon --noheadings 2>/dev/null | grep -q . && ok "swap is active" || warn "no swap is active (zram swap normally is: sunshine-performance on)"
+[ $RESCUE = 1 ] || { [ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)" = yes ] && ok "clock is synchronised" || warn "clock is not synchronised (certificates and updates can fail)" ; }
+[ $RESCUE = 1 ] || { swapon --noheadings 2>/dev/null | grep -q . && ok "swap is active" || warn "no swap is active (zram swap normally is: sunshine-performance on)" ; }
+if [ $RESCUE = 0 ]; then
 fu=$(systemctl --failed --no-legend 2>/dev/null | awk '{print $2}' | tr '\n' ' ')
 [ -z "${fu// }" ] && ok "no failed services" || warn "failed services: $fu"
+fi
 use=$(df --output=pcent / | tail -1 | tr -dc 0-9)
-if [ "${use:-0}" -ge 95 ]; then bad "root disk ${use}% full"; elif [ "${use:-0}" -ge 85 ]; then warn "root disk ${use}% full"; else ok "root disk ${use}% used"; fi
-[ "$(systemctl is-active NetworkManager 2>/dev/null)" = active ] && ok "network service running" || warn "NetworkManager is not running"
-[ -d "/usr/lib/modules/$(uname -r)" ] && ok "running kernel matches installed modules" || warn "kernel was updated: restart to use it"
+if [ "${use:-0}" -ge 95 ]; then bad "root disk ${use}% full"
+  if [ $FIX = 1 ]; then
+    before=$(df --output=avail -B1 / | tail -1 | tr -dc 0-9)
+    paccache -rk1 >/dev/null 2>&1; journalctl --vacuum-size=200M >/dev/null 2>&1
+    after=$(df --output=avail -B1 / | tail -1 | tr -dc 0-9); freed=$(( (after - before) / 1048576 )); [ "$freed" -lt 0 ] && freed=0
+    fx "freed $freed MB (old package files and journal)"
+  fi
+elif [ "${use:-0}" -ge 85 ]; then warn "root disk ${use}% full"; else ok "root disk ${use}% used"; fi
+[ $RESCUE = 1 ] || { [ "$(systemctl is-active NetworkManager 2>/dev/null)" = active ] && ok "network service running" || warn "NetworkManager is not running" ; }
+[ $RESCUE = 1 ] || { [ -d "/usr/lib/modules/$(uname -r)" ] && ok "running kernel matches installed modules" || warn "kernel was updated: restart to use it" ; }
 
 if [ $LIVE = 0 ]; then
   # lessons from other distributions' health tools and AI reviews: things that leave a system "booting but unusable"
@@ -174,7 +188,7 @@ if [ $LIVE = 0 ]; then
     pacman -Qq "$([ $svc = sddm ] && echo sddm || echo networkmanager)" >/dev/null 2>&1 || continue
     systemctl is-enabled --quiet "$svc" 2>/dev/null && ok "$svc is enabled" || { bad "$svc is not enabled"; [ $FIX = 1 ] && systemctl enable "$svc" >/dev/null 2>&1 && fx "$svc enabled"; }
   done
-  systemctl is-active --quiet NetworkManager 2>/dev/null || { warn "NetworkManager is not running"; [ $FIX = 1 ] && systemctl start NetworkManager >/dev/null 2>&1 && fx "NetworkManager started"; }
+[ $RESCUE = 1 ] || { systemctl is-active --quiet NetworkManager 2>/dev/null || { warn "NetworkManager is not running"; [ $FIX = 1 ] && systemctl start NetworkManager >/dev/null 2>&1 && fx "NetworkManager started"; } ; }
   if command -v visudo >/dev/null; then
     if visudo -c >/dev/null 2>&1; then ok "sudo configuration is valid"
     else bad "sudo configuration has a syntax error (sudo would refuse to work)"
@@ -184,7 +198,7 @@ if [ $LIVE = 0 ]; then
       fi
     fi
   fi
-  [ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)" = yes ] || { [ $FIX = 1 ] && timedatectl set-ntp true >/dev/null 2>&1 && systemctl restart systemd-timesyncd >/dev/null 2>&1 && fx "time synchronisation switched on"; }
+[ $RESCUE = 1 ] || { [ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)" = yes ] || { [ $FIX = 1 ] && timedatectl set-ntp true >/dev/null 2>&1 && systemctl restart systemd-timesyncd >/dev/null 2>&1 && fx "time synchronisation switched on"; } ; }
   ru=$(df --output=pcent / | tail -1 | tr -dc 0-9); if [ "${ru:-0}" -ge 95 ] && [ $FIX = 1 ] && [ -x /usr/local/bin/sunshine-fix ]; then /usr/local/bin/sunshine-fix storage >/dev/null 2>&1; [ "$(df --output=pcent / | tail -1 | tr -dc 0-9)" -lt "$ru" ] && fx "space freed (old package files, logs, thumbnails)"; fi
 fi
 
@@ -197,7 +211,7 @@ if [ $LIVE = 0 ]; then
   [ -e /etc/localtime ] && ok "time zone is set" || { warn "no time zone is set (clock shows UTC)"; }
   [ -s /etc/locale.conf ] && ok "system language is set" || warn "no system language is set (/etc/locale.conf is missing: localectl set-locale LANG=en_US.UTF-8)"
   for u in NetworkManager bluetooth cups sddm systemd-resolved systemd-timesyncd; do
-    systemctl is-failed --quiet "$u" 2>/dev/null && { warn "$u failed"; [ $FIX = 1 ] && systemctl reset-failed "$u" 2>/dev/null; [ $FIX = 1 ] && systemctl restart "$u" 2>/dev/null && fx "$u restarted"; }
+    [ $RESCUE = 0 ] && systemctl is-failed --quiet "$u" 2>/dev/null && { warn "$u failed"; [ $FIX = 1 ] && systemctl reset-failed "$u" 2>/dev/null; [ $FIX = 1 ] && systemctl restart "$u" 2>/dev/null && fx "$u restarted"; }
   done
 fi
 
@@ -220,7 +234,7 @@ else
   for u in snapper-timeline.timer snapper-cleanup.timer grub-btrfsd.service; do
     systemctl is-enabled "$u" >/dev/null 2>&1 && ok "$u enabled" || { warn "$u not enabled"; [ $FIX = 1 ] && systemctl enable --now "$u" >/dev/null 2>&1 && fx "$u enabled"; }; done
   if [ -e /etc/snapper/configs/root ]; then
-    if ! snapper -c root list >/dev/null 2>&1; then bad "snapper cannot read its snapshots (.snapshots missing or on another disk)"; [ $FIX = 1 ] && /usr/local/bin/sunshine-snapshots-setup / >/dev/null 2>&1 && fx "snapshot backend set up again"; fi
+    if [ $RESCUE = 0 ] && ! snapper -c root list >/dev/null 2>&1; then bad "snapper cannot read its snapshots (.snapshots missing or on another disk)"; [ $FIX = 1 ] && /usr/local/bin/sunshine-snapshots-setup / >/dev/null 2>&1 && fx "snapshot backend set up again"; fi
     c=$(snapper -c root list --columns number 2>/dev/null | grep -c '^ *[1-9]')
     [ "${c:-0}" -gt 0 ] && ok "$c restore point(s) available" || warn "no restore points yet (sunshine-snapshot create)"
   fi

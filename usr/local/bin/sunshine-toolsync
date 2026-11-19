@@ -40,6 +40,10 @@ case "$cmd" in
     new=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$T/manifest.json") || die "manifest unreadable"
     cur=$(local_version)
     [ "$new" = "$cur" ] && [ "${2:-}" != --force ] && { ok "$(loc "tools are up to date") ($cur)"; exit 0; }
+    # an old release is validly signed too: a network attacker could replay it to bring back a fixed bug. Never go backwards unless asked.
+    if [ "$cur" != none ] && [ "$(printf '%s\n%s\n' "$cur" "$new" | sort -V | head -1)" != "$cur" ] && [ "${2:-}" != --force ]; then
+      die "$(loc "the offered release is older than the installed tools"): $new < $cur $(loc "(refused; --force overrides)")"
+    fi
     fetch "$BASE/sunshine-tools.tar.gz" "$T/tools.tgz" || die "$(loc "could not download the tools archive")"
     # the archive is only trusted through the signed manifest: every file's checksum must match it
     mkdir "$T/x"; tar -C "$T/x" -xzf "$T/tools.tgz" --no-same-owner --no-same-permissions 2>/dev/null || die "$(loc "the archive is damaged")"
@@ -48,6 +52,8 @@ case "$cmd" in
       printf '%s' "$path" | grep -Eq "$ALLOW" || { echo "$(loc "refused (outside the Sunshine paths)"): $path"; skipped=$((skipped+1)); continue; }
       case "$path" in *..*) skipped=$((skipped+1)); continue;; esac
       src=$T/x/$path
+      [ "$(realpath -m "$src")" = "$src" ] || { echo "$(loc "refused (symbolic link in the path)"): $path"; skipped=$((skipped+1)); continue; }
+      case "${mode:-644}" in 644|755) ;; *) echo "$(loc "refused (unusual file mode)"): $path $mode"; skipped=$((skipped+1)); continue;; esac
       [ -f "$src" ] && [ ! -L "$src" ] || { echo "$(loc "missing in the archive"): $path"; skipped=$((skipped+1)); continue; }
       [ "$(sha256sum "$src" | cut -d' ' -f1)" = "$sum" ] || { echo "$(loc "checksum mismatch, refused"): $path"; skipped=$((skipped+1)); continue; }
       dest=/$path
@@ -58,9 +64,13 @@ case "$cmd" in
 import json,sys
 m=json.load(open(sys.argv[1]))
 for p,v in sorted(m["files"].items()): print("%s\t%s\t%s" % (p, v["sha256"], v.get("mode","644")))' "$T/manifest.json")
-    echo "$new" > "$VERFILE"; cp "$T/manifest.json" "$STATE/tools-manifest.json"
     [ -d "$BK" ] && ln -sfn "$BK" "$STATE/tools-backup/latest"
-    ok "$(loc "tools updated"): $cur -> $new ($n $(loc "files changed"), $skipped $(loc "refused"))"
+    if [ "$skipped" -gt 0 ]; then
+      # part of the release was refused: do not pretend the new version is installed (the next run tries again)
+      bad "$(loc "the update was incomplete"): $skipped $(loc "file(s) refused, version stays"): $cur"; exit 1
+    fi
+    echo "$new" > "$VERFILE"; cp "$T/manifest.json" "$STATE/tools-manifest.json"
+    ok "$(loc "tools updated"): $cur -> $new ($n $(loc "files changed"))"
     [ -x /usr/local/bin/sunshine-migrate ] && /usr/local/bin/sunshine-migrate run
     ;;
   rollback)

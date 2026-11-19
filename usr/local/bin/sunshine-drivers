@@ -23,7 +23,7 @@ LAPTOP=0; ls /sys/class/power_supply/BAT* >/dev/null 2>&1 && LAPTOP=1
 nv_generation_ok() { printf '%s\n' "$GPUS" | grep -i nvidia | grep -qE '\b(TU|GA|AD|GB|GH)[0-9]{2,3}'; }   # Turing and newer: the open kernel module supports them
 plan() {   # prints the packages to install, one per line, with the reason after a tab
   if [ -n "$VIRT" ]; then
-    case "$VIRT" in oracle) echo -e "virtualbox-guest-utils\tVirtualBox guest";; vmware) echo -e "open-vm-tools\tVMware guest";; kvm|qemu) echo -e "qemu-guest-agent\tQEMU guest"; echo -e "spice-vdagent\tQEMU guest";; esac
+    case "$VIRT" in oracle) echo -e "virtualbox-guest-utils\tVirtualBox guest"; echo -e "vulkan-swrast\tsoftware Vulkan";; vmware) echo -e "open-vm-tools\tVMware guest"; echo -e "vulkan-swrast\tsoftware Vulkan";; kvm|qemu) echo -e "qemu-guest-agent\tQEMU guest"; echo -e "spice-vdagent\tQEMU guest"; echo -e "vulkan-virtio\tVirGL Vulkan";; esac
     return
   fi
   if [ $HAS_NV = 1 ]; then
@@ -35,13 +35,19 @@ plan() {   # prints the packages to install, one per line, with the reason after
       for k in $kk; do case "$k" in linux) echo -e "nvidia-open\tNVIDIA open modules for linux";; linux-lts) echo -e "nvidia-open-lts\tNVIDIA open modules for linux-lts";; *) dk=1;; esac; done
       [ $dk = 1 ] && echo -e "nvidia-open-dkms\tNVIDIA modules built for the other kernels (DKMS)"
     else
-      if pacman -Si nvidia-580xx-dkms >/dev/null 2>&1; then echo -e "nvidia-580xx-dkms\tNVIDIA (older card: legacy driver)"; else echo -e "nvidia-dkms\tNVIDIA"; fi
+      # Maxwell and Pascal (GM/GP) and older: the open driver with Mesa's NVK Vulkan is the supported path (the old proprietary branches are gone from the repositories)
+      echo -e "mesa\topen driver for this older NVIDIA card"; echo -e "vulkan-nouveau\tVulkan for the open driver (NVK)"
+      grep -q '^\[multilib\]' /etc/pacman.conf && { echo -e "lib32-mesa\t32-bit graphics"; echo -e "lib32-vulkan-nouveau\t32-bit Vulkan"; }
+      return_nv=1
     fi
-    echo -e "nvidia-utils\tNVIDIA"; echo -e "nvidia-settings\tNVIDIA"
-    grep -q '^\[multilib\]' /etc/pacman.conf && echo -e "lib32-nvidia-utils\tNVIDIA 32-bit (Steam, Wine)"
+    if [ "${return_nv:-0}" != 1 ]; then
+    echo -e "nvidia-utils\tNVIDIA"; echo -e "nvidia-settings\tNVIDIA"; echo -e "egl-wayland\tNVIDIA on Wayland"; echo -e "libva-nvidia-driver\tvideo decoding"; echo -e "opencl-nvidia\tcompute (OpenCL)"
+    grep -q '^\[multilib\]' /etc/pacman.conf && { echo -e "lib32-nvidia-utils\tNVIDIA 32-bit (Steam, Wine)"; echo -e "lib32-opencl-nvidia\t32-bit compute"; }
     [ $HAS_IGPU = 1 ] && echo -e "nvidia-prime\tHybrid graphics: prime-run starts a program on the NVIDIA card"
     for k in $(pacman -Qq | grep -E '^linux(-lts|-zen|-hardened)?$'); do case "$k" in linux|linux-lts) ;; *) echo -e "$k-headers\tneeded to build the NVIDIA module for $k";; esac; done
+    fi
   fi
+  echo "$GPUS" | grep -qE '\[1002:' && { echo -e "vulkan-radeon\tAMD Vulkan"; echo -e "gst-plugin-va\tAMD video decoding (VA-API)"; echo -e "mesa\tAMD graphics"; }
   printf '%s\n' "$PCI" | grep -E 'Network|Wireless' | grep -qi 'broadcom' && echo -e "broadcom-wl-dkms\tBroadcom Wi-Fi"
   if [ $LAPTOP = 1 ]; then
     [ "$CPU" = GenuineIntel ] && echo -e "thermald\tIntel laptop: keeps it cool without throttling too early"
@@ -73,6 +79,8 @@ install_() {
     printf 'options nvidia_drm modeset=1 fbdev=1\noptions nvidia NVreg_PreserveVideoMemoryAllocations=1\n' > /etc/modprobe.d/sunshine-nvidia.conf
     printf 'blacklist nouveau\n' > /etc/modprobe.d/sunshine-nouveau.conf
     systemctl enable nvidia-suspend.service nvidia-resume.service nvidia-hibernate.service >/dev/null 2>&1
+    # the graphics modules load in the initramfs: no flicker, and Wayland starts on the right driver from the first frame
+    mkdir -p /etc/mkinitcpio.conf.d; printf 'MODULES+=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)\n' > /etc/mkinitcpio.conf.d/sunshine-nvidia.conf
     mkinitcpio -P >>/tmp/sunshine-drivers.log 2>&1
   fi
   if printf '%s\n' "${avail[@]}" | grep -q '^avahi$'; then
@@ -80,6 +88,7 @@ install_() {
     grep -q 'mdns_minimal' /etc/nsswitch.conf || sed -i '/^hosts:/ s/resolve/mdns_minimal [NOTFOUND=return] resolve/' /etc/nsswitch.conf
   fi
   printf '%s\n' "${avail[@]}" | grep -q '^thermald$' && systemctl enable --now thermald.service >/dev/null 2>&1
+  case "$VIRT" in oracle) systemctl enable --now vboxservice.service >/dev/null 2>&1;; vmware) systemctl enable --now vmtoolsd.service >/dev/null 2>&1;; kvm|qemu) systemctl enable --now qemu-guest-agent.service >/dev/null 2>&1;; esac
   printf '%s\n' "${avail[@]}" | grep -q '^fprintd$' && true
   ok "$(loc "Drivers installed.") $(printf '%s\n' "${avail[@]}" | grep -q '^nvidia' && loc "Restart to use the NVIDIA driver.")"
 }

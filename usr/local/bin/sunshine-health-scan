@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Weekly (and shortly after boot) silent health check as root: runs sunshine-doctor in check-only mode and writes the result for the tray widget
+# (sunshine-update-check reads it): /var/lib/sunshine/health.json. Nothing is changed on the system.
+mkdir -p /var/lib/sunshine
+out=$(/usr/local/bin/sunshine-doctor --quiet 2>&1 | sed 's/\x1b\[[0-9;]*m//g')
+bad=$(printf '%s\n' "$out" | grep -c '✘'); warn=$(printf '%s\n' "$out" | grep -c '^  !')
+first=$(printf '%s\n' "$out" | grep '✘' | head -3 | sed 's/^ *✘ *//' | tr '\n' ';' | sed 's/"/\\"/g')
+printf '{"problems": %s, "warnings": %s, "first": "%s", "checked": %s}\n' "$bad" "$warn" "$first" "$(date +%s)" > /var/lib/sunshine/health.json.tmp
+mv -f /var/lib/sunshine/health.json.tmp /var/lib/sunshine/health.json; chmod 644 /var/lib/sunshine/health.json

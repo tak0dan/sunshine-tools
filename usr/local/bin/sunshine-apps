@@ -64,6 +64,10 @@ case "$cmd" in
     if [ -x /usr/local/bin/sunshine-drivers ] && [ ! -e /var/lib/sunshine/drivers-done ] && online; then
       /usr/local/bin/sunshine-drivers auto >>"$LOG" 2>&1; touch /var/lib/sunshine/drivers-done; log "hardware drivers checked (sunshine-drivers detect shows what was found)"
     fi
+    # the performance profile (zram tuning, I/O schedulers, earlyoom ...) once, unless the user said no: touch /etc/sunshine/no-performance
+    if [ -x /usr/local/bin/sunshine-performance ] && [ ! -e /var/lib/sunshine/performance-done ] && [ ! -e /etc/sunshine/no-performance ] && online; then
+      /usr/local/bin/sunshine-performance on >>"$LOG" 2>&1; touch /var/lib/sunshine/performance-done; log "performance profile applied (sunshine-performance status; undo: sunshine-performance off)"
+    fi
     [ -e /var/lib/sunshine/first-update-done ] && { echo "first-update apps were already handled"; exit 0; }
     ids=$(python3 - <<'PY'
 import tomllib,pathlib

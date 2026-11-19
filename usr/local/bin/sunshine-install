@@ -302,6 +302,14 @@ sed -i 's/^# \(%wheel ALL=(ALL:ALL) ALL\)/\1/' /etc/sudoers
 mkinitcpio -k "$KVER" -g /boot/initramfs-linux.img
 systemctl enable NetworkManager.service sddm.service bluetooth.service cups.socket power-profiles-daemon.service systemd-timesyncd.service systemd-resolved.service fstrim.timer >/dev/null 2>&1
 systemctl set-default graphical.target
+# a virtual machine needs its guest service (clipboard, resolution, shutdown): the live-only symlinks were not copied, so enable the right one here
+case "$(systemd-detect-virt 2>/dev/null)" in
+  oracle) systemctl enable vboxservice.service >/dev/null 2>&1 ;;
+  vmware) systemctl enable vmtoolsd.service vmware-vmblock-fuse.service >/dev/null 2>&1 ;;
+  kvm|qemu) systemctl enable qemu-guest-agent.service spice-vdagentd.service >/dev/null 2>&1 ;;
+esac
+# take over the shipped sunshine-base package, so tool updates arrive with normal updates
+/usr/local/bin/sunshine-register-base || true
 /usr/local/bin/sunshine-identity apply --quiet
 sed -i 's/^#\?GRUB_DISTRIBUTOR=.*/GRUB_DISTRIBUTOR="Sunshine OS"/' /etc/default/grub
 sed -i '/^#\?GRUB_THEME=/d;/^#\?GRUB_GFXMODE=/d;/^#\?GRUB_TERMINAL_OUTPUT=/d' /etc/default/grub

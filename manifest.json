@@ -2,7 +2,7 @@
  "files": {
   "usr/local/bin/sunshine-apps": {
    "mode": "755",
-   "sha256": "c3824a1786eead12cd4e28e7a8df25912fbcce4c6e70a8232a85a3d1329dd4a1"
+   "sha256": "0f516c80b8e4b077830e6df0c592434e2a813436381d4aca8ce12752ae226815"
   },
   "usr/local/bin/sunshine-backup": {
    "mode": "755",
@@ -34,11 +34,11 @@
   },
   "usr/local/bin/sunshine-doctor": {
    "mode": "755",
-   "sha256": "7f159ee13eed801c29dab08e5da45f1de8f3c95f352208f0edbef955926e8183"
+   "sha256": "b0c25dacc68c86b514d4b18eb31f980d9b2482dbb004b6447bd03219b9f44a71"
   },
   "usr/local/bin/sunshine-drivers": {
    "mode": "755",
-   "sha256": "d664f088d13742636f9d8cf2cdac3c53eee1c1ae3d3b0d25e4a2952c177357c9"
+   "sha256": "d9a4f0b83f46350957fd2cb00e3f29a806b32a7bb7bd5b7ef187b12263b57b6d"
   },
   "usr/local/bin/sunshine-fastfetch-patch": {
    "mode": "755",
@@ -60,6 +60,10 @@
    "mode": "755",
    "sha256": "b130cb4db7c29af6519006b3c77f05c5335e99812da3e278191101ac466eae6b"
   },
+  "usr/local/bin/sunshine-health-scan": {
+   "mode": "755",
+   "sha256": "2397d6a382398db678df8947617871d342cfbf1ee578bbb7abc8f478cf1ca9a4"
+  },
   "usr/local/bin/sunshine-hyprland-install": {
    "mode": "755",
    "sha256": "22f9da462d72a0c6a6893bb9ff5fd91c3e38bb541555dcf1d5893244284c9930"
@@ -74,7 +78,7 @@
   },
   "usr/local/bin/sunshine-install": {
    "mode": "644",
-   "sha256": "c08dcba5cb6c0455f221d3b9d03431b3473880346ba09fd61ca2afe8af772a43"
+   "sha256": "a84161e816ba0eebf3c87eb150280d63a163e4f9ce8488b03e5f38ea111e4507"
   },
   "usr/local/bin/sunshine-kernel": {
    "mode": "755",
@@ -130,7 +134,7 @@
   },
   "usr/local/bin/sunshine-rescue": {
    "mode": "755",
-   "sha256": "3d3894cb6ac2e728a0283f68b939775e60155db1d475c3bfb29f008e7d2df520"
+   "sha256": "39afb8cce17821e042f801d6b95d85a145177225e8a8fd0b31d5f011dd776284"
   },
   "usr/local/bin/sunshine-reset-plasma": {
    "mode": "755",
@@ -182,7 +186,7 @@
   },
   "usr/local/bin/sunshine-toolsync": {
    "mode": "755",
-   "sha256": "c075322a03d9b5527588932d3a8a3f54684351aaf333552c94984fa3fa8bfa80"
+   "sha256": "5a91a7849211cc3c84423af7dd86a3438c4349029d209ffdd5f31b1af341d93b"
   },
   "usr/local/bin/sunshine-topbar": {
    "mode": "755",
@@ -202,7 +206,7 @@
   },
   "usr/local/bin/sunshine-update-run": {
    "mode": "644",
-   "sha256": "c68d7f2004632fe01caf82a9becd59072a82c103564b17fe5bea53ea298dd279"
+   "sha256": "84cf21a634ad7762147e68e7ed91d1ab13bc27e13f0cfc8770e8b212ef690c72"
   },
   "usr/local/bin/sunshine-webapp": {
    "mode": "755",
@@ -365,5 +369,5 @@
    "sha256": "380829c91f8f7c79bce5e963e00fbbfc78b38e4b14f0d99016fcbc2114497211"
   }
  },
- "version": "2026.11.19.126"
+ "version": "2026.11.19.152"
 }

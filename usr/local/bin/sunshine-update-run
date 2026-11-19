@@ -44,7 +44,7 @@ if command -v checkupdates >/dev/null; then
 fi
 
 # a kernel update without the matching NVIDIA module (prebuilt packages move together) would boot to a black screen
-if command -v checkupdates >/dev/null && pacman -Qq nvidia-open nvidia-open-lts >/dev/null 2>&1; then
+if command -v checkupdates >/dev/null && pacman -Qq 2>/dev/null | grep -qE '^nvidia-open(-lts)?$'; then
   ups=$(sudo -u "${REAL_USER:-nobody}" checkupdates 2>/dev/null | awk '{print $1}')
   for pair in linux:nvidia-open linux-lts:nvidia-open-lts; do k=${pair%%:*}; n=${pair##*:}
     if grep -qx "$k" <<<"$ups" && pacman -Qq "$n" >/dev/null 2>&1 && ! grep -qx "$n" <<<"$ups"; then
