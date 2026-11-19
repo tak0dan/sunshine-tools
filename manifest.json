@@ -194,7 +194,7 @@
   },
   "usr/local/bin/sunshine-topbar": {
    "mode": "755",
-   "sha256": "df86c4ab07978aaf7a7233eaf011e248e7e37c783e7ce98e2d855be3af03b438"
+   "sha256": "fb93ac6279e7e0a07800512ff6d748b26d93747e75291d69d8d25df30e65666c"
   },
   "usr/local/bin/sunshine-update": {
    "mode": "755",
@@ -210,7 +210,7 @@
   },
   "usr/local/bin/sunshine-update-run": {
    "mode": "755",
-   "sha256": "506a18ef1a86c07b1572bbbcdd0bbcaaea664fe2efa0baf9bb62fc565dd5a808"
+   "sha256": "dc051c822e04e107de23223eb800581cd67a186efe3bda6f8f27e34816d4a569"
   },
   "usr/local/bin/sunshine-webapp": {
    "mode": "755",
@@ -219,6 +219,10 @@
   "usr/local/bin/sunshine-welcome": {
    "mode": "755",
    "sha256": "b1962f8fdd32d1397a8a7f645bd7357eab1911293ad1f914a9bb72ef80e7e23f"
+  },
+  "usr/local/bin/sunshine-windfall-default": {
+   "mode": "755",
+   "sha256": "1d7c1c1ec4b41aa49d7599324825d918665aaec26dde4cebfe5acf1a06f10afa"
   },
   "usr/local/lib/sunshine/i18n.py": {
    "mode": "644",
@@ -397,5 +401,5 @@
    "sha256": "5159a4f987786cab822d09a194d16650de39c550589435567390496c74aee1a5"
   }
  },
- "version": "2026.11.19.219"
+ "version": "2026.11.19.221"
 }
