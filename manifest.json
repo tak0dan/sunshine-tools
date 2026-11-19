@@ -371,7 +371,31 @@
   "usr/share/sunshine/i18n/uk.tsv": {
    "mode": "644",
    "sha256": "ed326dc0a48ad450748ec1de85d80ef466920ddbb50f19f1fd40c24def77fb89"
+  },
+  "usr/share/sunshine/migrations/0001-topbar-without-window-widget.sh": {
+   "mode": "755",
+   "sha256": "85e4bf152be3db654cbcf412b11aa73796079f8c8b863feedd157d815f4be2c2"
+  },
+  "usr/share/sunshine/migrations/0002-fewer-login-lockouts.sh": {
+   "mode": "755",
+   "sha256": "e2fe7af1ef5dde28b072c36689a380faed293bf09862f361c77b8729c7f874a2"
+  },
+  "usr/share/sunshine/migrations/0003-no-obsolete-repositories.sh": {
+   "mode": "755",
+   "sha256": "a4df8eeb2cdf8de59b21ecf51a0ee419ef03af6805f9431fdd016d144303d5cb"
+  },
+  "usr/share/sunshine/migrations/0004-firewall-on.sh": {
+   "mode": "755",
+   "sha256": "ead05857dc99cf70ad777fcfd96caeb336f23a28e7bb5a0334a74847ffe8c7f9"
+  },
+  "usr/share/sunshine/migrations/0005-faster-boot.sh": {
+   "mode": "755",
+   "sha256": "6f2a5d26213bac07fbc686bca417b34cea0f136163a25a9c5a05d33fba7236b3"
+  },
+  "usr/share/sunshine/migrations/0006-visible-boot-log.sh": {
+   "mode": "755",
+   "sha256": "5159a4f987786cab822d09a194d16650de39c550589435567390496c74aee1a5"
   }
  },
- "version": "2026.11.19.217"
+ "version": "2026.11.19.218"
 }
