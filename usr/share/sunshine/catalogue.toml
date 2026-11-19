@@ -327,3 +327,47 @@ desc = "Graphical package manager (Sunshine theme)"
 aur = ["pamac-aur"]
 setup = "pamac-theme"
 
+
+# ------------------------------------------------------------------ Desktops (next to Plasma; pick one at the login screen; more: sunshine-desktops)
+[[app]]
+id = "desktop-gnome"
+name = "GNOME desktop"
+group = "Desktops"
+desc = "A focused, modern desktop; choose it at the login screen"
+pacman = ["gnome-shell", "gnome-session", "gnome-control-center", "nautilus", "gnome-console", "gnome-text-editor", "gnome-system-monitor"]
+[[app]]
+id = "desktop-xfce"
+name = "Xfce desktop"
+group = "Desktops"
+desc = "Light and traditional"
+pacman = ["xfce4-session", "xfce4-panel", "xfdesktop", "xfwm4", "xfce4-settings", "thunar", "xfce4-terminal", "xfce4-whiskermenu-plugin"]
+[[app]]
+id = "desktop-cinnamon"
+name = "Cinnamon desktop"
+group = "Desktops"
+desc = "Familiar, Windows-like"
+pacman = ["cinnamon", "nemo", "gnome-terminal"]
+[[app]]
+id = "desktop-mate"
+name = "MATE desktop"
+group = "Desktops"
+desc = "The classic GNOME 2 desktop"
+pacman = ["mate-desktop", "mate-session-manager", "mate-panel", "marco", "caja", "mate-terminal", "mate-control-center"]
+[[app]]
+id = "desktop-lxqt"
+name = "LXQt desktop"
+group = "Desktops"
+desc = "Very light Qt desktop"
+pacman = ["lxqt-session", "lxqt-panel", "lxqt-config", "pcmanfm-qt", "qterminal", "openbox"]
+[[app]]
+id = "desktop-i3"
+name = "i3 (tiling)"
+group = "Desktops"
+desc = "Tiling window manager on X11"
+pacman = ["i3-wm", "i3status", "i3lock", "dmenu", "rofi", "alacritty", "feh", "picom"]
+[[app]]
+id = "desktop-sway"
+name = "Sway (tiling)"
+group = "Desktops"
+desc = "i3-style tiling on Wayland"
+pacman = ["sway", "swaybg", "swayidle", "swaylock", "waybar", "foot", "wofi", "grim", "slurp"]

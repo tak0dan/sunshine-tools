@@ -34,7 +34,7 @@
   },
   "usr/local/bin/sunshine-doctor": {
    "mode": "755",
-   "sha256": "aec58b7e84a848a6a2191320614384bbe4fce906c0d9ca3be04e99594add3e9c"
+   "sha256": "cf68626e67990e763ddb551170c65c5c851bad77c05a50eda3076bc795ef8995"
   },
   "usr/local/bin/sunshine-drivers": {
    "mode": "755",
@@ -46,7 +46,7 @@
   },
   "usr/local/bin/sunshine-fix": {
    "mode": "755",
-   "sha256": "aee2a5d86652d42421167ffd0b756d847d75d0d8670170ca0c3f6eb9bffd9a08"
+   "sha256": "ea3b6c4946061cd5d22a2f9be0e490ccb8705ba08c531dd1b0cd27b85943112c"
   },
   "usr/local/bin/sunshine-fix-pacman": {
    "mode": "755",
@@ -102,7 +102,7 @@
   },
   "usr/local/bin/sunshine-performance": {
    "mode": "755",
-   "sha256": "be306e6e0194658c78c97ad8c3fb6afccc027eae7be562951f7ac373d3dc4b7d"
+   "sha256": "9e9d5fc4430548f2f3ad610450caef523c75bc7ebff7b1d7ae19b67d14fd977f"
   },
   "usr/local/bin/sunshine-pet": {
    "mode": "755",
@@ -126,7 +126,7 @@
   },
   "usr/local/bin/sunshine-register-base": {
    "mode": "755",
-   "sha256": "806162507045f0f4c4d9fa33988bb6e814eecb52d716cdd5f792aa0a3a8945d2"
+   "sha256": "c3d17ef3055158f5a41072d78ad281ed3ae07a4650088232378a4370173c10a2"
   },
   "usr/local/bin/sunshine-repo": {
    "mode": "755",
@@ -366,12 +366,12 @@
   },
   "usr/share/sunshine/catalogue.toml": {
    "mode": "644",
-   "sha256": "183998be1c88af81f35a7a2ba9a280c78737214e04b6b1e10d44631697bf8290"
+   "sha256": "7d4540de92b434a58c2aea7b12960b897f92d3a5a548b45f540f94693b9ddd47"
   },
   "usr/share/sunshine/i18n/uk.tsv": {
    "mode": "644",
    "sha256": "eff7918eaccd870a00a59285e487d82438e6d48f9e60c718df32e981d13e62d8"
   }
  },
- "version": "2026.11.19.167"
+ "version": "2026.11.19.197"
 }

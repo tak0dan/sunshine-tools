@@ -25,7 +25,8 @@ fix_network() {
   fi
   gw=$(ip route 2>/dev/null | awk '/^default/{print $3; exit}')
   if [ -n "$gw" ]; then ping -c1 -W2 "$gw" >/dev/null 2>&1 && ok "the router answers ($gw)" || warn "the router does not answer ($gw): check the cable or Wi-Fi signal"; else bad "no default route (not connected)"; return; fi
-  ping -c1 -W3 1.1.1.1 >/dev/null 2>&1 && ok "the internet is reachable" || { bad "no internet beyond the router"; return; }
+  # a web request, not ping: many networks and virtual machines drop ICMP while the internet works
+  { curl -fsI --max-time 8 https://archlinux.org >/dev/null 2>&1 || ping -c1 -W3 1.1.1.1 >/dev/null 2>&1; } && ok "the internet is reachable" || { bad "no internet beyond the router"; return; }
   if getent hosts archlinux.org >/dev/null 2>&1; then ok "names resolve (DNS works)"
   else bad "DNS does not work"
     [ -e /etc/resolv.conf ] || { $SUDO ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf && fx "DNS link restored"; }
@@ -91,7 +92,7 @@ fix_storage() {
   du -sh "$HOME/.cache" 2>/dev/null | sed 's/^/  cache: /'
   u=$(df --output=pcent / | tail -1 | tr -dc 0-9)
   if [ "${u:-0}" -ge 80 ]; then
-    command -v paccache >/dev/null && $SUDO paccache -rqk1 && fx "old package files removed (the newest copy is kept)"
+    command -v paccache >/dev/null && { $SUDO paccache -rquk0; $SUDO paccache -rqk1; } && fx "old package files removed (packages no longer installed, and all but the newest copy of the rest)"
     $SUDO journalctl --vacuum-size=200M >/dev/null 2>&1 && fx "system log trimmed to 200 MB"
     [ -d "$HOME/.cache/thumbnails" ] && rm -rf "$HOME/.cache/thumbnails"/* && fx "thumbnail cache emptied (it rebuilds itself)"
     command -v flatpak >/dev/null && flatpak list --unused 2>/dev/null | grep -q . && warn "unused Flatpak runtimes: flatpak uninstall --unused"

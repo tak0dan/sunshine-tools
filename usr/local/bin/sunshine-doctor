@@ -45,6 +45,13 @@ if [ -n "${dbs_bad:-}" ]; then warn "package databases missing or damaged:$dbs_b
 if [ -r /var/log/pacman.log ] && awk '/synchronizing package lists/{sync=1} /starting full system upgrade/{sync=0} /\[ALPM\] upgraded /{ if (sync) bad=1 } END{exit !bad}' /var/log/pacman.log; then
   warn "packages were installed after a database refresh without a full upgrade (partial upgrade): sunshine-update fixes it"; [ $FIX = 1 ] && echo "    $(loc "not repaired automatically (a full upgrade is big): run sunshine-update now")"
 else ok "no partial upgrade detected"; fi
+if [ $RESCUE = 0 ] && command -v zstd >/dev/null; then
+  badpk=; for f in $(ls -t /var/cache/pacman/pkg/*.pkg.tar.zst 2>/dev/null | head -40); do zstd -tq "$f" >/dev/null 2>&1 || badpk="$badpk $(basename "$f")"; done
+  if [ -z "$badpk" ]; then ok "recent cached packages are intact"
+  else warn "damaged package file(s) in the cache:$badpk (an update would fail on them)"
+    if [ $FIX = 1 ]; then for f in $badpk; do rm -f "/var/cache/pacman/pkg/$f" "/var/cache/pacman/pkg/$f.sig"; done; fx "damaged cached packages removed (they download again)"; fi
+  fi
+fi
 # the packages without which the system cannot boot or log in (a broken removal, a bad cleanup): --fix puts them back from the repositories
 core_missing=
 for p in base linux-firmware mkinitcpio grub sudo networkmanager sddm plasma-desktop pipewire pacman sunshine-base; do pacman -Qq "$p" >/dev/null 2>&1 || core_missing="$core_missing $p"; done
@@ -101,7 +108,13 @@ for kd in /usr/lib/modules/*/; do
   fi
 done
 [ $nk = 0 ] && bad "no kernel is installed (pacman -S linux)"
-if [ -e /var/lib/sunshine/initramfs_error ]; then bad "the last package transaction left an incomplete boot setup ($(cat /var/lib/sunshine/initramfs_error))"; [ $FIX = 1 ] && { /usr/local/bin/sunshine-state-hook >/dev/null 2>&1; [ -e /var/lib/sunshine/initramfs_error ] || fx "boot files complete again"; }; fi
+# a marker left by the installer (written before the first initramfs existed) or by a transaction that has since been repaired: look again before reporting
+if [ -e /var/lib/sunshine/initramfs_error ]; then
+  allok=1; for kd in /usr/lib/modules/*/; do [ -f "$kd/vmlinuz" ] || continue; b=linux; [ -f "$kd/pkgbase" ] && b=$(cat "$kd/pkgbase"); [ -f "/boot/vmlinuz-$b" ] && [ -s "/boot/initramfs-$b.img" ] || allok=0; done
+  [ $allok = 1 ] && rm -f /var/lib/sunshine/initramfs_error
+fi
+if [ -e /var/lib/sunshine/initramfs_error ] && pgrep -x pacman >/dev/null; then warn "a package transaction is running right now: the boot files are checked after it"
+elif [ -e /var/lib/sunshine/initramfs_error ]; then bad "the last package transaction left an incomplete boot setup ($(cat /var/lib/sunshine/initramfs_error))"; [ $FIX = 1 ] && { /usr/local/bin/sunshine-state-hook >/dev/null 2>&1; [ -e /var/lib/sunshine/initramfs_error ] || fx "boot files complete again"; }; fi
 if [ -f /var/lib/sunshine/last_update ]; then
   age=$(( ($(date +%s) - $(stat -c %Y /var/lib/sunshine/last_update)) / 86400 ))
   [ "$age" -gt 14 ] && warn "the last update was $age days ago (sunshine-update)" || ok "last update: $age day(s) ago"
@@ -135,7 +148,12 @@ PY
     if [ $FIX = 1 ]; then cp --sparse=never --reflink=never /boot/vmlinuz-linux /boot/vmlinuz-linux.dense && mv -f /boot/vmlinuz-linux.dense /boot/vmlinuz-linux && fx "kernel rewritten"; fi; fi
 fi
 if grep -q menuentry /boot/grub/grub.cfg 2>/dev/null; then ok "GRUB menu present"; else bad "/boot/grub/grub.cfg is missing or has no boot entries"; [ $FIX = 1 ] && grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1 && grep -q menuentry /boot/grub/grub.cfg && fx "GRUB menu regenerated"; fi
-if [ -d /sys/firmware/efi ]; then mountpoint -q /boot/efi && ok "EFI partition mounted" || warn "EFI partition not mounted at /boot/efi (kernel/GRUB updates may not reach it)"; fi
+if [ -d /sys/firmware/efi ]; then
+  if mountpoint -q /boot/efi; then ok "EFI partition mounted"
+  else warn "EFI partition not mounted at /boot/efi (kernel/GRUB updates may not reach it)"
+    if [ $FIX = 1 ] && grep -qE '[[:space:]]/boot/efi[[:space:]]' /etc/fstab; then mount /boot/efi 2>/dev/null && mountpoint -q /boot/efi && fx "EFI partition mounted"; fi
+  fi
+fi
 if findmnt --verify >/dev/null 2>&1; then ok "/etc/fstab consistent"; else warn "/etc/fstab has problems (run: findmnt --verify)"; fi
 fi
 
@@ -159,7 +177,7 @@ use=$(df --output=pcent / | tail -1 | tr -dc 0-9)
 if [ "${use:-0}" -ge 95 ]; then bad "root disk ${use}% full"
   if [ $FIX = 1 ]; then
     before=$(df --output=avail -B1 / | tail -1 | tr -dc 0-9)
-    paccache -rk1 >/dev/null 2>&1; journalctl --vacuum-size=200M >/dev/null 2>&1
+    paccache -ruk0 >/dev/null 2>&1; paccache -rk1 >/dev/null 2>&1; journalctl --vacuum-size=200M >/dev/null 2>&1
     after=$(df --output=avail -B1 / | tail -1 | tr -dc 0-9); freed=$(( (after - before) / 1048576 )); [ "$freed" -lt 0 ] && freed=0
     fx "freed $freed MB (old package files and journal)"
   fi
@@ -202,7 +220,7 @@ if [ $LIVE = 0 ]; then
       fi
     fi
   fi
-[ $RESCUE = 1 ] || { [ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)" = yes ] || { [ $FIX = 1 ] && timedatectl set-ntp true >/dev/null 2>&1 && systemctl restart systemd-timesyncd >/dev/null 2>&1 && fx "time synchronisation switched on"; } ; }
+[ $RESCUE = 1 ] || { [ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)" = yes ] || { [ $FIX = 1 ] && timedatectl set-ntp true >/dev/null 2>&1 && systemctl restart systemd-timesyncd >/dev/null 2>&1 && { for _ in 1 2 3 4 5 6 7 8 9 10; do [ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)" = yes ] && break; sleep 2; done; fx "time synchronisation switched on"; }; } ; }
   ru=$(df --output=pcent / | tail -1 | tr -dc 0-9); if [ "${ru:-0}" -ge 95 ] && [ $FIX = 1 ] && [ -x /usr/local/bin/sunshine-fix ]; then /usr/local/bin/sunshine-fix storage >/dev/null 2>&1; [ "$(df --output=pcent / | tail -1 | tr -dc 0-9)" -lt "$ru" ] && fx "space freed (old package files, logs, thumbnails)"; fi
 fi
 

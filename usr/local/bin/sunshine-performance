@@ -20,11 +20,25 @@ F_WB=/etc/udev/rules.d/61-sunshine-writeback.rules
 F_NTSYNC=/etc/modules-load.d/sunshine-ntsync.conf
 F_NOFILE=/etc/systemd/system.conf.d/60-sunshine-limits.conf
 F_NTP=/etc/systemd/timesyncd.conf.d/10-sunshine.conf
+F_KHUGE=/etc/tmpfiles.d/sunshine-thp-shrinker.conf
+F_CLEAN=/etc/tmpfiles.d/sunshine-coredump-age.conf
+F_USER_TIMEOUT=/etc/systemd/user.conf.d/50-sunshine-timeouts.conf
 
 on() {
   sec "Memory and swap"
   # compressed swap in RAM is faster than any disk; with it the kernel should swap early and in single pages
-  [ -f "$F_ZRAM" ] || { printf '[zram0]\nzram-size = min(ram / 2, 8192)\ncompression-algorithm = zstd\nswap-priority = 100\nfs-type = swap\n' > "$F_ZRAM"; }
+  # CachyOS and Garuda use zram-size = ram. That is only safe to raise on a desktop with enough RAM:
+  # keep the smaller pool on laptops, machines with less than 8 GiB and virtual machines.
+  if [ ! -f "$F_ZRAM" ]; then
+    mem_mb=$(awk '/MemTotal:/{print int($2/1024)}' /proc/meminfo)
+    has_battery=0
+    for b in /sys/class/power_supply/BAT*; do [ -e "$b" ] && has_battery=1; done
+    zram_size='min(ram / 2, 8192)'
+    if [ "$mem_mb" -ge 8192 ] && [ "$has_battery" -eq 0 ] && ! systemd-detect-virt --quiet --vm; then
+      zram_size='min(ram, 8192)'
+    fi
+    printf '# SUNSHINE\n[zram0]\nzram-size = %s\ncompression-algorithm = zstd\nswap-priority = 100\nfs-type = swap\n' "$zram_size" > "$F_ZRAM"
+  fi
   cat > "$F_SYSCTL" <<EOF
 # Sunshine OS performance profile (sunshine-performance on/off)
 vm.swappiness = 100
@@ -39,6 +53,10 @@ net.core.netdev_max_backlog = 16384
 net.ipv4.tcp_fastopen = 3
 net.ipv4.tcp_congestion_control = bbr
 net.core.default_qdisc = fq
+# CachyOS 70-cachyos-settings.conf and SteamOS via Garuda 20-sched.conf
+fs.file-max = 2097152
+# SteamOS via Garuda 20-net-timeout.conf: games that die and restart need their TCP ports back
+net.ipv4.tcp_fin_timeout = 5
 EOF
   echo tcp_bbr > /etc/modules-load.d/sunshine-bbr.conf
   sysctl --system >/dev/null 2>&1; ok "$(loc "kernel settings applied (swap tuned for zram, bigger map count for games, BBR network)")"
@@ -56,25 +74,36 @@ EOF
   udevadm control --reload >/dev/null 2>&1; udevadm trigger --subsystem-match=block >/dev/null 2>&1
   systemctl enable --now fstrim.timer >/dev/null 2>&1 && ok "$(loc "weekly TRIM for SSDs")"
   sec "System"
-  mkdir -p "$(dirname "$F_JOURNAL")" "$(dirname "$F_TIMEOUT")" "$(dirname "$F_MAKEPKG")" "$(dirname "$F_CORE")"
+  mkdir -p "$(dirname "$F_JOURNAL")" "$(dirname "$F_TIMEOUT")" "$(dirname "$F_MAKEPKG")" "$(dirname "$F_CORE")" "$(dirname "$F_USER_TIMEOUT")"
   printf '[Journal]\nSystemMaxUse=300M\nRuntimeMaxUse=100M\n' > "$F_JOURNAL"
-  printf '[Manager]\nDefaultTimeoutStopSec=10s\nDefaultTimeoutStartSec=30s\nDefaultLimitNOFILE=1048576\n' > "$F_TIMEOUT"
+  printf '[Manager]\nDefaultTimeoutStopSec=10s\nDefaultTimeoutStartSec=30s\nDefaultTimeoutAbortSec=10s\nDefaultLimitNOFILE=1048576\n' > "$F_TIMEOUT"
+  printf '[Manager]\nDefaultTimeoutStopSec=10s\nDefaultTimeoutAbortSec=10s\n' > "$F_USER_TIMEOUT"
   printf '[Coredump]\nStorage=external\nMaxUse=500M\nKeepFree=2G\n' > "$F_CORE"
+  # CachyOS and Garuda drop coredumps older than three days.
+  printf 'e /var/lib/systemd/coredump - - - 3d\n' > "$F_CLEAN"
+  systemd-tmpfiles --create "$F_CLEAN" >/dev/null 2>&1
   # builds use every core, packages are compressed with every core
   printf 'MAKEFLAGS="-j%s"\nCOMPRESSZST=(zstd -c -T0 --auto-threads=logical -)\n' "$(nproc)" > "$F_MAKEPKG"
   [ -d /etc/makepkg.conf.d ] && grep -q 'makepkg.conf.d' /etc/makepkg.conf 2>/dev/null || true
   # ideas from CachyOS-Settings
   printf 'blacklist iTCO_wdt\nblacklist sp5100_tco\nblacklist wdat_wdt\n' > "$F_WDT"                      # hardware watchdogs only slow down shutdown
   printf 'w! /sys/kernel/mm/transparent_hugepage/defrag - - - - defer+madvise\n' > "$F_THP"; systemd-tmpfiles --create "$F_THP" >/dev/null 2>&1
+  # CachyOS thp-shrinker.conf: this knob only exists on 6.12+ kernels.
+  if [ -e /sys/kernel/mm/transparent_hugepage/khugepaged/max_ptes_none ]; then
+    printf 'w! /sys/kernel/mm/transparent_hugepage/khugepaged/max_ptes_none - - - - 409\n' > "$F_KHUGE"
+    systemd-tmpfiles --create "$F_KHUGE" >/dev/null 2>&1
+  fi
   [ -e /sys/module/ntsync ] || modinfo ntsync >/dev/null 2>&1 && echo ntsync > "$F_NTSYNC"                    # Wine/Proton NT synchronisation in the kernel
   mkdir -p "$(dirname "$F_NOFILE")" "$(dirname "$F_NTP")"
   printf '[Manager]\nDefaultLimitNOFILE=2048:2097152\n' > "$F_NOFILE"
   printf '[Time]\nNTP=time.cloudflare.com\nFallbackNTP=time.google.com 0.arch.pool.ntp.org 1.arch.pool.ntp.org 2.arch.pool.ntp.org\n' > "$F_NTP"
   # a copy to a USB stick or an HDD must not "finish" instantly into RAM and then freeze the unmount for minutes: cap the dirty data per slow device
+  # CachyOS 61-writeback-limits.rules: 1 GiB for an HDD delayed unmounts too long, and USB needs its own smaller cap.
   cat > "$F_WB" <<'EOT'
 ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ATTR{removable}=="1", ATTR{bdi/strict_limit}="1", ATTR{bdi/max_bytes}="268435456"
-ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", KERNEL=="sd[a-z]*", ATTR{queue/rotational}=="1", ATTR{bdi/strict_limit}="1", ATTR{bdi/max_bytes}="1073741824"
+ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", KERNEL=="sd[a-z]*", ATTR{queue/rotational}=="1", ATTR{bdi/strict_limit}="1", ATTR{bdi/max_bytes}="268435456"
 ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", KERNEL=="mmcblk[0-9]*", ATTR{bdi/strict_limit}="1", ATTR{bdi/max_bytes}="268435456"
+ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ENV{ID_BUS}=="usb", ATTR{bdi/strict_limit}="1", ATTR{bdi/max_bytes}="16777216"
 EOT
   # zram is cheaper than disk: prefer swapping anonymous pages (swappiness above 100 is allowed since kernel 5.8) and keep zswap out of its way
   cat > /etc/udev/rules.d/30-sunshine-zram.rules <<'EOT'
@@ -89,15 +118,16 @@ EOT
   ok "$(loc "profile is on")"; echo "$(loc "A restart applies everything; check the numbers with: sunshine-performance bench")"
 }
 off() {
-  rm -f "$F_SYSCTL" "$F_UDEV" "$F_JOURNAL" "$F_TIMEOUT" "$F_MAKEPKG" "$F_CORE" "$F_WDT" "$F_THP" "$F_WB" "$F_NTSYNC" "$F_NOFILE" "$F_NTP" /etc/udev/rules.d/30-sunshine-zram.rules /etc/modules-load.d/sunshine-bbr.conf
+  rm -f "$F_SYSCTL" "$F_UDEV" "$F_JOURNAL" "$F_TIMEOUT" "$F_USER_TIMEOUT" "$F_MAKEPKG" "$F_CORE" "$F_CLEAN" "$F_WDT" "$F_THP" "$F_KHUGE" "$F_WB" "$F_NTSYNC" "$F_NOFILE" "$F_NTP" /etc/udev/rules.d/30-sunshine-zram.rules /etc/modules-load.d/sunshine-bbr.conf
+  grep -q '^# SUNSHINE$' "$F_ZRAM" 2>/dev/null && rm -f "$F_ZRAM"   # only the config on wrote, never a pre-existing one
   sed -i '/^# SUNSHINE$/,$d' /etc/default/earlyoom 2>/dev/null
   systemctl disable --now earlyoom.service ananicy-cpp.service >/dev/null 2>&1
   sysctl --system >/dev/null 2>&1; udevadm control --reload >/dev/null 2>&1
-  ok "$(loc "profile removed (zram swap and the installed packages stay)")"
+  ok "$(loc "profile removed (running zram swap and installed packages stay until reboot)")"
 }
 status() {
   chk() { [ -e "$2" ] && printf '  %s+%s %s\n' "$G" "$N" "$1" || printf '  %s-%s %s\n' "$R" "$N" "$1"; }
-  chk "sysctl profile" "$F_SYSCTL"; chk "I/O schedulers" "$F_UDEV"; chk "journal limit" "$F_JOURNAL"; chk "service timeouts" "$F_TIMEOUT"; chk "makepkg all cores" "$F_MAKEPKG"
+  chk "sysctl profile" "$F_SYSCTL"; chk "I/O schedulers" "$F_UDEV"; chk "journal limit" "$F_JOURNAL"; chk "service timeouts" "$F_TIMEOUT"; chk "user timeouts" "$F_USER_TIMEOUT"; chk "coredump age" "$F_CLEAN"; chk "THP shrinker" "$F_KHUGE"; chk "makepkg all cores" "$F_MAKEPKG"
   for s in earlyoom ananicy-cpp fstrim.timer; do systemctl is-active --quiet "$s" 2>/dev/null && printf '  %s+%s %s active\n' "$G" "$N" "$s" || printf '  %s-%s %s inactive\n' "$R" "$N" "$s"; done
   zramctl 2>/dev/null | sed 's/^/  /'
   printf '  swappiness=%s  max_map_count=%s  tcp=%s\n' "$(sysctl -n vm.swappiness)" "$(sysctl -n vm.max_map_count)" "$(sysctl -n net.ipv4.tcp_congestion_control)"

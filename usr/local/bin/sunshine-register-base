@@ -7,4 +7,5 @@ for p in /usr/share/sunshine/pkgs/sunshine-base-*.pkg.tar.zst; do
   [ -f "$p" ] || continue
   pacman -U --noconfirm --overwrite '*' "$p" || echo "sunshine-register-base: could not register $p (continuing)" >&2
 done
+rm -f /var/lib/sunshine/initramfs_error      # the state hook ran before the first initramfs existed: not a real problem
 exit 0
