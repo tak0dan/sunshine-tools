@@ -1,0 +1,10 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = plasma-workspace
+
+[Action]
+Description = Putting the Sunshine flower wallpaper into the preloaded Plasma themes...
+When = PostTransaction
+Exec = /usr/local/bin/sunshine-theme-wallpapers

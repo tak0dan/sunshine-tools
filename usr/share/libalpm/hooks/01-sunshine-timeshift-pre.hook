@@ -1,0 +1,11 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Package
+Target = *
+
+[Action]
+Description = Restore point before the update (Timeshift systems)...
+When = PreTransaction
+Exec = /usr/local/bin/sunshine-snapshot pre-hook

@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# Sunshine OS gaming setup (after Garuda Gamer and SteamOS): the right graphics stack for your card, Steam, Proton, Lutris, Gamemode, MangoHud,
+# Gamescope and the system tuning games like, in one command. Packages that are not in the enabled repositories are skipped and listed.
+#   sunshine-gaming status          what is installed, what the graphics card needs
+#   sunshine-gaming install [LEVEL] LEVEL: base (default: drivers, Steam, Gamemode, MangoHud), full (+ Lutris, Wine, Gamescope, Heroic, ProtonUp)
+#   sunshine-gaming tune            only the system tuning (sysctl, Gamemode group, ananicy rules)
+#   sunshine-gaming gpu             detected graphics hardware and the packages chosen for it
+[ "$(id -u)" -eq 0 ] || exec sudo "$0" "$@"
+[ -r /usr/local/lib/sunshine/ui.sh ] && . /usr/local/lib/sunshine/ui.sh || { sec() { echo "* $*"; }; ok() { echo "+ $*"; }; bad() { echo "x $*"; }; loc() { printf '%s' "$*"; }; Y=; G=; R=; B=; N=; }
+REAL_USER=${SUDO_USER:-${PKEXEC_UID:+$(getent passwd "$PKEXEC_UID" | cut -d: -f1)}}
+gpus() { lspci -nn 2>/dev/null | grep -E 'VGA|3D|Display' ; }
+vendor_pkgs() {   # packages by graphics vendor (32-bit libraries are what Steam and Wine need); PCI vendor ids, not names
+  local ids; ids=$(lspci -nn 2>/dev/null | grep -E 'VGA|3D|Display' | grep -oE '\[[0-9a-f]{4}:[0-9a-f]{4}\]' | tr -d '[]')
+  echo "$ids" | grep -q '^10de:' && {
+    if lspci -nn | grep -i 'nvidia' | grep -qE '\[10de:(2[0-9a-f]{3}|1[ef][0-9a-f]{2}|2[0-9a-f]{3})\]'; then echo "nvidia-open-dkms nvidia-utils lib32-nvidia-utils nvidia-settings"; else echo "nvidia-dkms nvidia-utils lib32-nvidia-utils nvidia-settings"; fi; }
+  echo "$ids" | grep -q '^1002:' && echo "mesa lib32-mesa vulkan-radeon lib32-vulkan-radeon libva-mesa-driver"
+  echo "$ids" | grep -q '^8086:' && echo "mesa lib32-mesa vulkan-intel lib32-vulkan-intel intel-media-driver"
+  echo "$ids" | grep -qE '^(15ad|80ee|1af4|1b36|1234):' && echo "mesa lib32-mesa vulkan-mesa-layers"
+  return 0
+}
+multilib_on() {
+  grep -q '^\[multilib\]' /etc/pacman.conf && return 0
+  grep -q '^#\[multilib\]' /etc/pacman.conf || return 1
+  sed -i '/^#\[multilib\]/,/^#Include/ s/^#//' /etc/pacman.conf && pacman -Sy >/dev/null 2>&1
+}
+install_list() {   # install what exists, report what does not
+  local want=() miss=() p
+  for p in "$@"; do pacman -Qq "$p" >/dev/null 2>&1 && continue; if pacman -Si "$p" >/dev/null 2>&1; then want+=("$p"); else miss+=("$p"); fi; done
+  [ ${#want[@]} -gt 0 ] && { pacman -S --noconfirm --needed "${want[@]}" && ok "$(loc "installed"): ${want[*]}" || bad "$(loc "some packages failed to install")"; }
+  [ ${#miss[@]} -gt 0 ] && echo "$(loc "not in the enabled repositories (skipped)"): ${miss[*]}"
+}
+tune() {
+  sec "Tuning for games"
+  printf '# Sunshine OS gaming\nvm.max_map_count = 2147483642\nkernel.split_lock_mitigate = 0\nfs.file-max = 2097152\n' > /etc/sysctl.d/98-sunshine-gaming.conf; sysctl --system >/dev/null 2>&1
+  ok "$(loc "map count raised (needed by many Proton games), split-lock penalty off")"
+  mkdir -p /etc/security/limits.d; printf '* soft nofile 1048576\n* hard nofile 1048576\n' > /etc/security/limits.d/90-sunshine-gaming.conf
+  if getent group gamemode >/dev/null && [ -n "$REAL_USER" ]; then usermod -aG gamemode "$REAL_USER" && ok "$REAL_USER $(loc "is in the gamemode group (log out and in)")"; fi
+  if pacman -Qq ananicy-cpp >/dev/null 2>&1; then systemctl enable --now ananicy-cpp >/dev/null 2>&1 && ok "ananicy-cpp"; fi
+  [ -x /usr/local/bin/sunshine-performance ] && echo "$(loc "More tuning: sunshine-performance on")"
+}
+status() {
+  echo "${Y}${B}$(loc "Graphics")${N}"; gpus | sed 's/^/  /'
+  echo "${Y}${B}$(loc "Gaming software")${N}"
+  for p in steam lutris gamemode lib32-gamemode mangohud gamescope wine-staging winetricks protonup-qt heroic-games-launcher-bin goverlay vulkan-icd-loader lib32-vulkan-icd-loader; do
+    pacman -Qq "$p" >/dev/null 2>&1 && printf '  %s+%s %-28s %s\n' "$G" "$N" "$p" "$(pacman -Q "$p" | awk '{print $2}')" || printf '  %s-%s %s\n' "$R" "$N" "$p"
+  done
+  printf '  %s=%s  %s\n' "vm.max_map_count" "$(sysctl -n vm.max_map_count)" "$([ "$(sysctl -n vm.max_map_count)" -ge 1048576 ] && echo ok || echo "$(loc "too low for some games: sunshine-gaming tune")")"
+  grep -q '^\[multilib\]' /etc/pacman.conf && ok "multilib" || bad "multilib $(loc "is not enabled")"
+}
+case "${1:-status}" in
+  gpu) gpus; echo; echo "$(loc "packages for it"): $(vendor_pkgs | tr '\n' ' ')" ;;
+  status) status ;;
+  tune) tune ;;
+  install)
+    level=${2:-base}
+    multilib_on || { bad "$(loc "multilib could not be enabled in /etc/pacman.conf")"; exit 1; }
+    ok "multilib"
+    sec "Graphics drivers"
+    pk=$(vendor_pkgs | tr '\n' ' '); [ -n "$pk" ] || pk="mesa lib32-mesa vulkan-icd-loader lib32-vulkan-icd-loader"
+    install_list $pk vulkan-icd-loader lib32-vulkan-icd-loader
+    sec "Games"
+    install_list steam gamemode lib32-gamemode mangohud lib32-mangohud
+    if [ "$level" = full ]; then
+      install_list lutris wine-staging winetricks gamescope goverlay lib32-gnutls lib32-sdl2 protonup-qt heroic-games-launcher-bin proton-ge-custom-bin
+    fi
+    tune
+    ok "$(loc "Gaming setup done. Open Steam, then Settings > Compatibility > enable Steam Play for all titles. Launch options: gamemoderun mangohud %command%")"
+    ;;
+  *) sed -n 2,8p "$0"; exit 2 ;;
+esac

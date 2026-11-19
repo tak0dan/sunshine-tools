@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# Sunshine OS performance profile: the tuning Garuda (performance-tweaks, ananicy), CachyOS (sysctl, udev, zram) and SteamOS ship, as one switch.
+# Every change is a small file under /etc, so `off` removes exactly what `on` wrote; nothing in your own configuration is edited.
+#   sunshine-performance status     what is on and what the numbers are
+#   sunshine-performance on         apply the profile (the installer does this by default)
+#   sunshine-performance off        take it away again
+#   sunshine-performance bench      boot time, memory, slowest services, disk scheduler (to compare before and after)
+[ "$(id -u)" -eq 0 ] || exec sudo "$0" "$@"
+[ -r /usr/local/lib/sunshine/ui.sh ] && . /usr/local/lib/sunshine/ui.sh || { sec() { echo "* $*"; }; ok() { echo "+ $*"; }; bad() { echo "x $*"; }; loc() { printf '%s' "$*"; }; Y=; G=; R=; B=; N=; }
+F_SYSCTL=/etc/sysctl.d/99-sunshine-performance.conf
+F_UDEV=/etc/udev/rules.d/60-sunshine-ioschedulers.rules
+F_JOURNAL=/etc/systemd/journald.conf.d/50-sunshine.conf
+F_TIMEOUT=/etc/systemd/system.conf.d/50-sunshine-timeouts.conf
+F_MAKEPKG=/etc/makepkg.conf.d/sunshine.conf
+F_ZRAM=/etc/systemd/zram-generator.conf
+F_CORE=/etc/systemd/coredump.conf.d/50-sunshine.conf
+mem_gb=$(awk '/MemTotal/{printf "%d", $2/1048576+0.5}' /proc/meminfo)
+
+on() {
+  sec "Memory and swap"
+  # compressed swap in RAM is faster than any disk; with it the kernel should swap early and in single pages
+  [ -f "$F_ZRAM" ] || { printf '[zram0]\nzram-size = min(ram / 2, 8192)\ncompression-algorithm = zstd\nswap-priority = 100\nfs-type = swap\n' > "$F_ZRAM"; }
+  cat > "$F_SYSCTL" <<EOF
+# Sunshine OS performance profile (sunshine-performance on/off)
+vm.swappiness = 100
+vm.page-cluster = 0
+vm.vfs_cache_pressure = 50
+vm.dirty_bytes = 268435456
+vm.dirty_background_bytes = 67108864
+vm.max_map_count = 2147483642
+kernel.nmi_watchdog = 0
+kernel.split_lock_mitigate = 0
+net.core.netdev_max_backlog = 16384
+net.ipv4.tcp_fastopen = 3
+net.ipv4.tcp_congestion_control = bbr
+net.core.default_qdisc = fq
+EOF
+  echo tcp_bbr > /etc/modules-load.d/sunshine-bbr.conf
+  sysctl --system >/dev/null 2>&1; ok "$(loc "kernel settings applied (swap tuned for zram, bigger map count for games, BBR network)")"
+  if pacman -Qq earlyoom >/dev/null 2>&1 || pacman -S --noconfirm --needed earlyoom >/dev/null 2>&1; then
+    mkdir -p /etc/default; grep -q SUNSHINE /etc/default/earlyoom 2>/dev/null || printf '# SUNSHINE\nEARLYOOM_ARGS="-r 3600 -m 4 -s 4 --avoid (^|/)(init|systemd|sshd|Xorg|plasmashell|kwin_wayland|sddm)$ --prefer (^|/)(chrome|firefox|zen|electron|java)$"\n' > /etc/default/earlyoom
+    systemctl enable --now earlyoom.service >/dev/null 2>&1 && ok "$(loc "earlyoom keeps the desktop alive when memory runs out")"
+  else echo "$(loc "earlyoom could not be installed (offline?): skipped")"; fi
+  sec "Disk"
+  # NVMe needs no scheduler; SSDs mq-deadline; spinning disks BFQ (fair for desktops)
+  cat > "$F_UDEV" <<'EOF'
+ACTION=="add|change", KERNEL=="nvme[0-9]*n[0-9]*", ATTR{queue/scheduler}="none"
+ACTION=="add|change", KERNEL=="sd[a-z]*|mmcblk[0-9]*", ATTR{queue/rotational}=="0", ATTR{queue/scheduler}="mq-deadline"
+ACTION=="add|change", KERNEL=="sd[a-z]*", ATTR{queue/rotational}=="1", ATTR{queue/scheduler}="bfq"
+EOF
+  udevadm control --reload >/dev/null 2>&1; udevadm trigger --subsystem-match=block >/dev/null 2>&1
+  systemctl enable --now fstrim.timer >/dev/null 2>&1 && ok "$(loc "weekly TRIM for SSDs")"
+  sec "System"
+  mkdir -p "$(dirname "$F_JOURNAL")" "$(dirname "$F_TIMEOUT")" "$(dirname "$F_MAKEPKG")" "$(dirname "$F_CORE")"
+  printf '[Journal]\nSystemMaxUse=300M\nRuntimeMaxUse=100M\n' > "$F_JOURNAL"
+  printf '[Manager]\nDefaultTimeoutStopSec=10s\nDefaultTimeoutStartSec=30s\nDefaultLimitNOFILE=1048576\n' > "$F_TIMEOUT"
+  printf '[Coredump]\nStorage=external\nMaxUse=500M\nKeepFree=2G\n' > "$F_CORE"
+  # builds use every core, packages are compressed with every core
+  printf 'MAKEFLAGS="-j%s"\nCOMPRESSZST=(zstd -c -T0 --auto-threads=logical -)\n' "$(nproc)" > "$F_MAKEPKG"
+  [ -d /etc/makepkg.conf.d ] && grep -q 'makepkg.conf.d' /etc/makepkg.conf 2>/dev/null || true
+  ok "$(loc "journal capped, quick service stop, builds and package compression use all cores")"
+  if pacman -Si ananicy-cpp >/dev/null 2>&1; then
+    pacman -S --noconfirm --needed ananicy-cpp $(pacman -Si cachyos-ananicy-rules >/dev/null 2>&1 && echo cachyos-ananicy-rules) >/dev/null 2>&1 && systemctl enable --now ananicy-cpp.service >/dev/null 2>&1 && ok "$(loc "ananicy-cpp gives games and the desktop priority over background work")"
+  else echo "$(loc "ananicy-cpp is not in the enabled repositories (Chaotic-AUR has it): skipped")"; fi
+  ok "$(loc "profile is on")"; echo "$(loc "A restart applies everything; check the numbers with: sunshine-performance bench")"
+}
+off() {
+  rm -f "$F_SYSCTL" "$F_UDEV" "$F_JOURNAL" "$F_TIMEOUT" "$F_MAKEPKG" "$F_CORE" /etc/modules-load.d/sunshine-bbr.conf
+  sed -i '/^# SUNSHINE$/,$d' /etc/default/earlyoom 2>/dev/null
+  systemctl disable --now earlyoom.service ananicy-cpp.service >/dev/null 2>&1
+  sysctl --system >/dev/null 2>&1; udevadm control --reload >/dev/null 2>&1
+  ok "$(loc "profile removed (zram swap and the installed packages stay)")"
+}
+status() {
+  chk() { [ -e "$2" ] && printf '  %s+%s %s\n' "$G" "$N" "$1" || printf '  %s-%s %s\n' "$R" "$N" "$1"; }
+  chk "sysctl profile" "$F_SYSCTL"; chk "I/O schedulers" "$F_UDEV"; chk "journal limit" "$F_JOURNAL"; chk "service timeouts" "$F_TIMEOUT"; chk "makepkg all cores" "$F_MAKEPKG"
+  for s in earlyoom ananicy-cpp fstrim.timer; do systemctl is-active --quiet "$s" 2>/dev/null && printf '  %s+%s %s active\n' "$G" "$N" "$s" || printf '  %s-%s %s inactive\n' "$R" "$N" "$s"; done
+  zramctl 2>/dev/null | sed 's/^/  /'
+  printf '  swappiness=%s  max_map_count=%s  tcp=%s\n' "$(sysctl -n vm.swappiness)" "$(sysctl -n vm.max_map_count)" "$(sysctl -n net.ipv4.tcp_congestion_control)"
+}
+bench() {
+  echo "${Y}${B}Sunshine OS $(loc "performance numbers")${N}"
+  echo "  $(systemd-analyze 2>/dev/null | head -1)"
+  echo "  $(systemd-analyze blame 2>/dev/null | head -5 | sed 's/^ *//' | tr '\n' ';' | sed 's/;/;  /g')"
+  free -m | awk '/Mem:/{printf "  RAM used %d of %d MiB\n",$3,$2} /Swap:/{printf "  swap used %d of %d MiB\n",$3,$2}'
+  echo "  processes: $(ps -e --no-headers | wc -l)   services running: $(systemctl list-units --type=service --state=running --no-legend 2>/dev/null | wc -l)"
+  for d in /sys/block/*/queue/scheduler; do [ -e "$d" ] && printf '  %s scheduler: %s\n' "$(echo "$d" | cut -d/ -f4)" "$(cat "$d")"; done | grep -v -E 'loop|zram|ram'
+  echo "  load: $(cut -d' ' -f1-3 /proc/loadavg)   cpu governor: $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo n/a)"
+}
+case "${1:-status}" in on) on;; off) off;; status) status;; bench) bench;; *) sed -n 2,9p "$0"; exit 2;; esac

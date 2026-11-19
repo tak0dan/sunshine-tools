@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Sunshine OS desktop chooser (after EndeavourOS's many desktops and CachyOS's installer choices): install other desktops and window managers next to
+# Plasma and pick them at the login screen. Everything installs from the official repositories; removing one leaves the others alone.
+#   sunshine-desktops list              what is available and what is installed
+#   sunshine-desktops install NAME      install a desktop (a restore point is made first on btrfs)
+#   sunshine-desktops remove NAME       remove what that desktop brought (shared packages stay)
+#   sunshine-desktops default NAME      the login screen starts with this session selected
+declare -A PKG DESC SESSION
+add() { PKG[$1]=$2; DESC[$1]=$3; SESSION[$1]=$4; }
+add kde        "plasma-desktop plasma-nm plasma-pa kscreen dolphin konsole"                      "KDE Plasma (the default)"                         plasma
+add gnome      "gnome-shell gnome-session gnome-control-center nautilus gnome-console gnome-text-editor gnome-system-monitor gnome-tweaks" "GNOME: a focused, modern desktop" gnome
+add xfce       "xfce4 xfce4-whiskermenu-plugin thunar-archive-plugin" "Xfce: light and traditional"            xfce
+add cinnamon   "cinnamon nemo nemo-fileroller gnome-terminal xed"                                "Cinnamon: familiar, Windows-like"                 cinnamon
+add mate       "mate mate-terminal pluma caja-open-terminal"                                     "MATE: the classic GNOME 2 desktop"                mate
+add budgie     "budgie-desktop budgie-extras nemo gnome-terminal"                                "Budgie: simple and elegant"                       budgie-desktop
+add lxqt       "lxqt breeze-icons"                                                               "LXQt: very light Qt desktop"                      lxqt
+add cosmic     "cosmic" "COSMIC: System76's Rust desktop"  cosmic
+add i3         "i3-wm i3status i3lock dmenu rofi alacritty feh picom"                            "i3: tiling window manager (X11)"                  i3
+add sway       "sway swaybg swayidle swaylock waybar foot wofi grim slurp"                       "Sway: i3-style tiling on Wayland"                 sway
+add hyprland   "hyprland waybar foot wofi hyprpaper hypridle hyprlock xdg-desktop-portal-hyprland" "Hyprland: animated tiling (Wayland)"           hyprland
+add niri       "niri waybar fuzzel foot xdg-desktop-portal-gnome"                                "niri: scrollable tiling (Wayland)"                niri
+add openbox    "openbox obconf-qt tint2 pcmanfm-qt lxappearance feh"                             "Openbox: tiny floating window manager"            openbox
+add qtile      "qtile python-psutil alacritty rofi"                                              "Qtile: tiling window manager in Python"           qtile
+add bspwm      "bspwm sxhkd polybar rofi alacritty feh picom"                                    "bspwm: tiling by binary space partitioning"       bspwm
+add awesome    "awesome vicious alacritty rofi"                                                  "Awesome: highly configurable tiling"              awesome
+[ "$(id -u)" -eq 0 ] || exec sudo "$0" "$@"
+[ -r /usr/local/lib/sunshine/ui.sh ] && . /usr/local/lib/sunshine/ui.sh || { sec() { echo "* $*"; }; ok() { echo "+ $*"; }; bad() { echo "x $*"; }; loc() { printf '%s' "$*"; }; Y=; G=; R=; B=; N=; }
+names=(kde gnome xfce cinnamon mate budgie lxqt cosmic i3 sway hyprland niri openbox qtile bspwm awesome)
+have_session() { ls /usr/share/xsessions/"$1"*.desktop /usr/share/wayland-sessions/"$1"*.desktop >/dev/null 2>&1; }
+REPO_LIST=$({ pacman -Slq; pacman -Sgq; } 2>/dev/null | sort -u)   # one call: every package of the enabled repositories
+avail() { local p; for p in ${PKG[$1]}; do grep -qx -- "$p" <<<"$REPO_LIST" || return 1; done; return 0; }
+expand() { local p; for p in ${PKG[$1]}; do if pacman -Sgq "$p" 2>/dev/null | grep -q .; then pacman -Sgq "$p"; else echo "$p"; fi; done; }   # package groups (xfce4, mate, lxqt, cosmic) to their members
+case "${1:-list}" in
+  list)
+    printf '%s\n' "${Y}${B}$(loc "Desktops and window managers")${N}"
+    for n in "${names[@]}"; do
+      st=$(loc "available"); avail "$n" || st=$(loc "not in the enabled repositories"); have_session "${SESSION[$n]}" && st="${G}$(loc "installed")${N}"
+      printf '  %-10s %-52s %s\n' "$n" "${DESC[$n]}" "$st"
+    done ;;
+  install)
+    n=${2:-}; [ -n "${PKG[$n]:-}" ] || { bad "usage: sunshine-desktops install NAME ($(printf '%s ' "${names[@]}"))"; exit 2; }
+    have_session "${SESSION[$n]}" && { ok "$n $(loc "is already installed")"; exit 0; }
+    [ -d /run/archiso ] && { bad "$(loc "Install the system first; this tool works on the installed system.")"; exit 1; }
+    pacman -Sy >/dev/null 2>&1; REPO_LIST=$({ pacman -Slq; pacman -Sgq; } 2>/dev/null | sort -u)
+    miss=; for p in ${PKG[$n]}; do grep -qx -- "$p" <<<"$REPO_LIST" || miss="$miss $p"; done
+    [ -n "$miss" ] && { bad "$(loc "not available in the enabled repositories"):$miss"; exit 1; }
+    if [ "$(findmnt -no FSTYPE /)" = btrfs ] && command -v snapper >/dev/null && [ -e /etc/snapper/configs/root ]; then snapper -c root create -d "before sunshine-desktops install $n" >/dev/null 2>&1 && ok "$(loc "restore point made")"; fi
+    sec "Installing $n"
+    # GNOME's gdm and our login screen (sddm) must not fight: sddm stays, gdm is installed but not enabled
+    pacman -S --noconfirm --needed ${PKG[$n]} || { bad "$(loc "installation failed")"; exit 1; }
+    if have_session "${SESSION[$n]}"; then ok "$n $(loc "installed: pick it at the login screen (the session menu)")"; else bad "$(loc "installed, but no session file appeared")"; exit 1; fi
+    systemctl is-enabled sddm >/dev/null 2>&1 || echo "$(loc "No login screen is enabled: sudo systemctl enable sddm")" ;;
+  remove)
+    n=${2:-}; [ -n "${PKG[$n]:-}" ] || { bad "usage: sunshine-desktops remove NAME"; exit 2; }
+    [ "$n" = kde ] && { bad "$(loc "Plasma is the default desktop and stays")"; exit 1; }
+    # remove only what is not needed by other installed packages (pacman -Rns refuses to break dependencies)
+    for p in $(expand "$n"); do pacman -Qq "$p" >/dev/null 2>&1 && pacman -Rns --noconfirm "$p" >/dev/null 2>&1; done
+    have_session "${SESSION[$n]}" && bad "$(loc "some of it is still needed by other packages")" || ok "$n $(loc "removed")" ;;
+  default)
+    n=${2:-}; [ -n "${PKG[$n]:-}" ] || { bad "usage: sunshine-desktops default NAME"; exit 2; }
+    f=$(ls /usr/share/wayland-sessions/${SESSION[$n]}*.desktop /usr/share/xsessions/${SESSION[$n]}*.desktop 2>/dev/null | head -1)
+    [ -n "$f" ] || { bad "$n $(loc "is not installed")"; exit 1; }
+    mkdir -p /var/lib/sddm; printf '[Last]\nSession=%s\n' "$f" > /var/lib/sddm/state.conf
+    ok "$(loc "the login screen starts with") $n" ;;
+  *) sed -n 2,8p "$0"; exit 2 ;;
+esac

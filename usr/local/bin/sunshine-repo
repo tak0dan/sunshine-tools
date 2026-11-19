@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# The [sunshine] package repository (the Sunshine OS tools, store, payload and AUR-built packages, hosted on GitHub) must always be in
+# pacman.conf. This tool checks it and puts it back if it was removed, changed or left pointing at a build-time path.
+#   sunshine-repo check      exit 0 if [sunshine] is there with the right server, 1 if not
+#   sunshine-repo ensure     add or repair the section (root; keeps a copy of the old file as pacman.conf.pre-sunshine)
+#   sunshine-repo url        print the server address
+# Options: --quiet. Used by sunshine-doctor, sunshine-fix-pacman, sunshine-update-run and a pacman hook (after pacman itself is upgraded).
+URL=${SUNSHINE_REPO_URL:-https://github.com/tak0dan/sunshineos-repo/releases/download/repo}
+CONF=${SUNSHINE_PACMAN_CONF:-/etc/pacman.conf}
+SIGLEVEL="PackageRequired DatabaseOptional"
+mode=${1:-check}; quiet=0; [ "${2:-}" = --quiet ] && quiet=1
+say() { [ "$quiet" = 1 ] || echo "$*"; }
+first() { awk '/^\[/ && $0!="[options]"{print $0; exit}' "$CONF"; }       # the first repository section
+cur() { awk '/^\[sunshine\]/{f=1;next} /^\[/{f=0} f&&/^Server[[:space:]]*=/{print $3;exit}' "$CONF"; }
+# Chaotic-AUR (prebuilt AUR packages) is part of every Sunshine system: added here, so it appears on the first update (or the first pacman
+# upgrade of sunshine-base). Keyring and mirror list come from the [sunshine] repository, with the Chaotic CDN as a fallback.
+# SUNSHINE_CHAOTIC=off in /etc/sunshine/repos.conf keeps it out.
+# [sunshine] must be the first repository: packages are taken from the first repository that has them
+top_sunshine() {
+  [ "$(first)" = "[sunshine]" ] && return 0
+  python3 - "$CONF" <<'PY'
+import re, sys
+p = sys.argv[1]; s = open(p).read()
+m = re.search(r"\n\[sunshine\]\n(?:[^\[\n][^\n]*\n)*", s)
+if not m: sys.exit(0)
+blk = m.group(0).strip("\n") + "\n\n"; s = s.replace(m.group(0), "\n", 1)
+first = re.search(r"^\[(?!options\])[^\]]+\]\s*$", s, re.M)
+s = s[:first.start()] + "# The Sunshine repository is first: its packages win over the same names elsewhere\n" + blk + s[first.start():] if first else s + "\n" + blk
+open(p, "w").write(s)
+PY
+}
+ensure_chaotic() {
+  [ "$(sed -n 's/^chaotic=//p' /etc/sunshine/repos.conf 2>/dev/null | tail -1)" = off ] && return 0
+  [ -e /var/lib/pacman/db.lck ] && return 0      # called from inside a pacman transaction (the hook): the update tool finishes the job
+  if grep -q '^\[chaotic-aur\]' "$CONF" && [ -f /etc/pacman.d/chaotic-mirrorlist ]; then return 0; fi
+  if [ ! -f /etc/pacman.d/chaotic-mirrorlist ] || [ ! -f /usr/share/pacman/keyrings/chaotic.gpg ]; then
+    say "adding Chaotic-AUR: keyring and mirror list"
+    pacman -Sy --noconfirm --needed chaotic-keyring chaotic-mirrorlist >/dev/null 2>&1 \
+      || { pacman-key --recv-key 3056513887B78AEB --keyserver keyserver.ubuntu.com >/dev/null 2>&1 && pacman-key --lsign-key 3056513887B78AEB >/dev/null 2>&1 && pacman -U --noconfirm https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-keyring.pkg.tar.zst https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-mirrorlist.pkg.tar.zst >/dev/null 2>&1; } \
+      || { say "could not get the Chaotic-AUR keyring (offline?); will try again at the next update"; return 1; }
+  fi
+  pacman-key --populate chaotic >/dev/null 2>&1
+  if ! grep -q '^\[chaotic-aur\]' "$CONF"; then
+    cp -a "$CONF" "$CONF.pre-chaotic"
+    printf '\n[chaotic-aur]\nInclude = /etc/pacman.d/chaotic-mirrorlist\n' >> "$CONF"
+  fi
+  say "[chaotic-aur] repository added"; touch /run/sunshine-repo-changed 2>/dev/null; return 0
+}
+case "$mode" in
+  url) echo "$URL";;
+  check)
+    if ! grep -q '^\[sunshine\]' "$CONF"; then say "the [sunshine] repository is missing from $CONF"; exit 1; fi
+    sl=$(awk '/^\[sunshine\]/{f=1;next} /^\[/{f=0} f&&/^SigLevel/{sub(/^SigLevel[ \t]*=[ \t]*/,"");print;exit}' "$CONF")
+    c=$(cur); [ "$c" = "$URL" ] && [ "$sl" = "$SIGLEVEL" ] && [ "$(first)" = "[sunshine]" ] && { say "[sunshine] repository OK ($URL, signed)"; exit 0; }
+    say "[sunshine] points at '${c:-nothing}', expected $URL"; exit 1;;
+  chaotic) [ "$(id -u)" -eq 0 ] || { echo "run as root: sudo sunshine-repo chaotic" >&2; exit 1; }; ensure_chaotic;;
+  ensure)
+    [ "$(id -u)" -eq 0 ] || { echo "run as root: sudo sunshine-repo ensure" >&2; exit 1; }
+    if "$0" check --quiet; then say "[sunshine] repository OK"; ensure_chaotic; exit 0; fi
+    cp -a "$CONF" "$CONF.pre-sunshine"
+    # the repository is signed: trust its key (shipped in sunshine-base and on the ISO)
+    [ -f /usr/share/pacman/keyrings/sunshine.gpg ] && pacman-key --populate sunshine >/dev/null 2>&1
+    if grep -q '^\[sunshine\]' "$CONF"; then
+      if grep -A4 '^\[sunshine\]' "$CONF" | grep -q '^SigLevel'; then sed -i "/^\[sunshine\]/,/^\[/{s|^SigLevel[[:space:]]*=.*|SigLevel = $SIGLEVEL|}" "$CONF"; else sed -i "/^\[sunshine\]/a SigLevel = $SIGLEVEL" "$CONF"; fi
+      if grep -A4 '^\[sunshine\]' "$CONF" | grep -q '^Server'; then
+        sed -i "/^\[sunshine\]/,/^\[/{s|^Server[[:space:]]*=.*|Server = $URL|}" "$CONF"
+      else
+        sed -i "/^\[sunshine\]/a Server = $URL" "$CONF"
+      fi
+    else
+      printf '\n[sunshine]\nSigLevel = %s\nServer = %s\n' "$SIGLEVEL" "$URL" >> "$CONF"
+    fi
+    top_sunshine
+    say "[sunshine] repository restored in $CONF"; ensure_chaotic;;
+  *) echo "usage: sunshine-repo check|ensure|url [--quiet]" >&2; exit 2;;
+esac

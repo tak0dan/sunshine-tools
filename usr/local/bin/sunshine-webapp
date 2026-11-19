@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Web services as app windows (Outlook, WhatsApp, Netflix, Notion ...): a launcher in the menu that opens the site in its own window
+# with its own browser profile, so it feels like an app and does not mix with your normal browsing.
+#   sunshine-webapp add ID "Name" URL     create the menu launcher (per user)
+#   sunshine-webapp remove ID             remove it
+#   sunshine-webapp run ID                open it (what the launcher calls)
+#   sunshine-webapp list
+# Uses a Chromium-based browser in app mode (chromium, brave, chrome) when there is one, Firefox in a new window otherwise.
+set -u
+APPS=${XDG_DATA_HOME:-$HOME/.local/share}/applications; DATA=${XDG_DATA_HOME:-$HOME/.local/share}/sunshine/webapps
+cmd=${1:-list}; shift || true
+browser() {
+  for b in chromium brave google-chrome-stable brave-browser; do command -v $b >/dev/null && { echo "chromium:$b"; return; }; done
+  for b in firefox zen-browser; do command -v $b >/dev/null && { echo "firefox:$b"; return; }; done
+}
+case "$cmd" in
+  add)
+    id=${1:?id}; name=${2:?name}; url=${3:?url}
+    mkdir -p "$APPS" "$DATA"
+    printf '%s\n%s\n' "$name" "$url" > "$DATA/$id"
+    cat > "$APPS/sunshine-webapp-$id.desktop" <<DESK
+[Desktop Entry]
+Type=Application
+Name=$name
+Comment=$name (web app)
+Exec=sunshine-webapp run $id
+Icon=${SUNSHINE_WEBAPP_ICON:-web-browser}
+Terminal=false
+Categories=Network;
+StartupWMClass=sunshine-webapp-$id
+DESK
+    echo "created: $name" ;;
+  remove) id=${1:?id}; rm -f "$APPS/sunshine-webapp-$id.desktop" "$DATA/$id"; echo "removed: $id" ;;
+  list) for f in "$DATA"/*; do [ -f "$f" ] && printf '%s  %s\n' "$(basename "$f")" "$(sed -n 2p "$f")"; done ;;
+  run)
+    id=${1:?id}; [ -f "$DATA/$id" ] || { echo "unknown web app: $id" >&2; exit 1; }
+    url=$(sed -n 2p "$DATA/$id"); b=$(browser); kind=${b%%:*}; bin=${b#*:}
+    [ -n "$b" ] || { echo "no browser found for web apps" >&2; exit 1; }
+    prof="${XDG_STATE_HOME:-$HOME/.local/state}/sunshine/webapp-profiles/$id"; mkdir -p "$prof"
+    if [ "$kind" = chromium ]; then exec "$bin" --app="$url" --user-data-dir="$prof" --class="sunshine-webapp-$id" --no-first-run
+    else exec "$bin" --new-window "$url"; fi ;;
+  *) sed -n 2,10p "$0"; exit 2 ;;
+esac

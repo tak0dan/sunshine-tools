@@ -1,0 +1,24 @@
+#!/bin/bash
+# Checks for updates and writes the state the update widget reads: ~/.cache/sunshine/update-state.json
+#   packages      number of pending package updates (pacman, including the [sunshine] repository)
+#   sunshine      pending updates of Sunshine packages (themes, configs, tools: the "repository with packages or configs" case)
+#   distro        a newer Sunshine OS release was published (site release.json differs from the version this system last saw)
+#   state         none | dot (some updates) | arrow (distro update, Sunshine repo update, or more than 50 packages)
+# usage: sunshine-update-check [--quiet]      `sunshine-update-check seen` records the current release as installed (the updater calls it)
+STATE_DIR=${XDG_CACHE_HOME:-$HOME/.cache}/sunshine; mkdir -p "$STATE_DIR"
+OUT=$STATE_DIR/update-state.json; SEEN=$STATE_DIR/release-seen
+RELEASE_URL=${SUNSHINE_RELEASE_URL:-https://tak0dan.github.io/sunshineos-site/release.json}
+remote=$(curl -fsS --max-time 8 "$RELEASE_URL" 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("version") or d.get("name") or "")' 2>/dev/null)
+if [ "${1:-}" = seen ]; then [ -n "$remote" ] && printf '%s' "$remote" > "$SEEN"; exit 0; fi
+list=$(checkupdates 2>/dev/null || true)
+packages=$(printf '%s' "$list" | grep -c . || true)
+sunshine=$(printf '%s' "$list" | grep -c '^sunshine-' || true)
+distro=false
+if [ -n "$remote" ]; then
+  if [ -f "$SEEN" ]; then [ "$(cat "$SEEN")" != "$remote" ] && distro=true; else printf '%s' "$remote" > "$SEEN"; fi
+fi
+state=none
+[ "${packages:-0}" -gt 0 ] && state=dot
+{ [ "$distro" = true ] || [ "${sunshine:-0}" -gt 0 ] || [ "${packages:-0}" -gt 50 ]; } && state=arrow
+printf '{"packages": %s, "sunshine": %s, "distro": %s, "release": "%s", "state": "%s", "checked": %s}\n' "${packages:-0}" "${sunshine:-0}" "$distro" "$remote" "$state" "$(date +%s)" > "$OUT.tmp" && mv "$OUT.tmp" "$OUT"
+[ "${1:-}" = --quiet ] || cat "$OUT"

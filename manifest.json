@@ -1,0 +1,321 @@
+{
+ "files": {
+  "usr/local/bin/sunshine-apps": {
+   "mode": "755",
+   "sha256": "877d18918d5966c583a41895d8e9faa977432e6e4a7be86f1096e04739614a07"
+  },
+  "usr/local/bin/sunshine-boot-repair": {
+   "mode": "755",
+   "sha256": "831f0379273fa8a6eab34052e5fcec04e9d1ff4a3ec5d999d5e2b331ee600566"
+  },
+  "usr/local/bin/sunshine-cleanup": {
+   "mode": "755",
+   "sha256": "4f91e612c8d4c45df6d460b194c2b5576f0a988e5b8ffb7ed055b5887b97867a"
+  },
+  "usr/local/bin/sunshine-crypt-setup": {
+   "mode": "755",
+   "sha256": "e921cc54cbfecd639226c7323532a04bda696820154592e9c5704db68a248d39"
+  },
+  "usr/local/bin/sunshine-desktops": {
+   "mode": "755",
+   "sha256": "09832b364f61087a1b5987771cab8154718a836b3d662d7d71b0e183e1a6131b"
+  },
+  "usr/local/bin/sunshine-detect-location": {
+   "mode": "755",
+   "sha256": "567e7551046dbdc62eaf42452ccc441d393d1c167bf1255f9ab8d89d0856975d"
+  },
+  "usr/local/bin/sunshine-diagnose": {
+   "mode": "755",
+   "sha256": "0b3054ff651a22ac0236c5f6531036351c6c82ee564a250759f16ec2be12d530"
+  },
+  "usr/local/bin/sunshine-doctor": {
+   "mode": "755",
+   "sha256": "3ff692827b73fa8eee0f500b77db5cb3e8d95a2da3651d642e756bc031ab2450"
+  },
+  "usr/local/bin/sunshine-fastfetch-patch": {
+   "mode": "755",
+   "sha256": "a67b09b49cc49f97d8be6bf09fa35fd963b1a7a3dc0caebc8c84c0b428573ef9"
+  },
+  "usr/local/bin/sunshine-fix-pacman": {
+   "mode": "755",
+   "sha256": "1d07cb30609fc895a5f482e9ba295707eb2e436cd30732ccb03583cc656844f4"
+  },
+  "usr/local/bin/sunshine-gaming": {
+   "mode": "755",
+   "sha256": "81a4ec96cd00e668f62799b6ce1ea2163fd711d9745b3a34f3e8525405f783e5"
+  },
+  "usr/local/bin/sunshine-hyprland-install": {
+   "mode": "755",
+   "sha256": "22f9da462d72a0c6a6893bb9ff5fd91c3e38bb541555dcf1d5893244284c9930"
+  },
+  "usr/local/bin/sunshine-identity": {
+   "mode": "755",
+   "sha256": "372fe05a67729315044eac2097d1cb82be7f3f65fa34af570f7a5a3c9efe884d"
+  },
+  "usr/local/bin/sunshine-info": {
+   "mode": "755",
+   "sha256": "996bb02364ab891b1c3cb9930a6daf360a082b42522551280353440cefd68f1b"
+  },
+  "usr/local/bin/sunshine-install": {
+   "mode": "644",
+   "sha256": "c08dcba5cb6c0455f221d3b9d03431b3473880346ba09fd61ca2afe8af772a43"
+  },
+  "usr/local/bin/sunshine-kernel": {
+   "mode": "755",
+   "sha256": "c8ebffdb9ad2b06abb72ebde1764187ab43287c1becbaba5ee73ac2de95c8699"
+  },
+  "usr/local/bin/sunshine-live-setup": {
+   "mode": "755",
+   "sha256": "e6a79ec957205262e19f97f925086de617eeee71c0e9fd2f3ee195dec3bf9492"
+  },
+  "usr/local/bin/sunshine-nixos-grub": {
+   "mode": "755",
+   "sha256": "8423158c314c805d1a3a277bad76e49d532960b3c122f666ec918b5c1a672f11"
+  },
+  "usr/local/bin/sunshine-performance": {
+   "mode": "755",
+   "sha256": "57a1da549ca5c89c53844ca6e9125a7e54aacabef17548ed9416412473220198"
+  },
+  "usr/local/bin/sunshine-pet": {
+   "mode": "755",
+   "sha256": "d6b1dadd687ce07a1d3b0b0b6b1b911b4b410d7b128dea314ff43187cf460381"
+  },
+  "usr/local/bin/sunshine-plasma-setup": {
+   "mode": "755",
+   "sha256": "923c743774a7a02c9178fc10608c4688cc0cb0d562d691f58c79e1c0defb4868"
+  },
+  "usr/local/bin/sunshine-pods": {
+   "mode": "755",
+   "sha256": "20688213183aee49d08b41f946571c7773e9208780adc5e0f7298329404ae809"
+  },
+  "usr/local/bin/sunshine-post-install": {
+   "mode": "644",
+   "sha256": "895ed9e2fb39687b757f3d51031caa44bbd89ffa8422f869b06861eb75689a83"
+  },
+  "usr/local/bin/sunshine-prompt": {
+   "mode": "755",
+   "sha256": "e4f82633e55bce1aac04b09fc28ba796488364f74d01bdd6465623fd77d0a3ed"
+  },
+  "usr/local/bin/sunshine-register-base": {
+   "mode": "755",
+   "sha256": "806162507045f0f4c4d9fa33988bb6e814eecb52d716cdd5f792aa0a3a8945d2"
+  },
+  "usr/local/bin/sunshine-repo": {
+   "mode": "755",
+   "sha256": "85cda9080d1c98e9fad3e65408c7e451291fe9a79ac6fe16b1ec1bdd6711ca1b"
+  },
+  "usr/local/bin/sunshine-rescue": {
+   "mode": "755",
+   "sha256": "a59d66ab0b375514545f8f3f430d1568c223ca272e178bec93bd45671e03243b"
+  },
+  "usr/local/bin/sunshine-restore-visuals": {
+   "mode": "755",
+   "sha256": "b2ae3dc9f17b10fac0e1c6034b5af9053ba7c4f1e3fe13dc73fce609a7e88e79"
+  },
+  "usr/local/bin/sunshine-session": {
+   "mode": "755",
+   "sha256": "ad3aa8b80a281c3c80287b91bbc6c171c2ee3fe1deb73dcb7e3c8d8357e590b9"
+  },
+  "usr/local/bin/sunshine-session-notice": {
+   "mode": "755",
+   "sha256": "50b074cb385c574df08090d0f547ab12c3663415aa2621e6c09bd69991995fc6"
+  },
+  "usr/local/bin/sunshine-set-shell": {
+   "mode": "755",
+   "sha256": "191950995c64442a1e576caa5a7c44cec741560df4948b1cc88c4c5b2ce0c6e6"
+  },
+  "usr/local/bin/sunshine-snapshot": {
+   "mode": "755",
+   "sha256": "43d51603b8205543540ab83bf21d8fc6572446f35c8315f67c360bc7888ae7d7"
+  },
+  "usr/local/bin/sunshine-snapshots-setup": {
+   "mode": "755",
+   "sha256": "7e6689ae4e0d97b5a653c908e97d54ebbf6e329ac1ab91a7e2dfd38963471ecb"
+  },
+  "usr/local/bin/sunshine-term": {
+   "mode": "755",
+   "sha256": "0d2d4121fd3247e3f6e4a8d18406c1814ea5394fb04bbbbb0e3eda9b72cd9071"
+  },
+  "usr/local/bin/sunshine-theme-wallpapers": {
+   "mode": "755",
+   "sha256": "815a466005735ecac5cff48bedd110d994c9783ffb7e648078d8b2800bc1a703"
+  },
+  "usr/local/bin/sunshine-toolbox": {
+   "mode": "755",
+   "sha256": "6b70f75d245ac4ca1882922771b76207096260fbcffae5f316e9ed5c58214235"
+  },
+  "usr/local/bin/sunshine-toolsync": {
+   "mode": "755",
+   "sha256": "73afb4b8eecf6e3cc2bf81bdb22603c4e3d2b5f09f01fbd29d1df3413a9cca34"
+  },
+  "usr/local/bin/sunshine-topbar": {
+   "mode": "755",
+   "sha256": "9a8017756a16350fd45415ac607915b6aff25adca514e3fca460b9ae10576f03"
+  },
+  "usr/local/bin/sunshine-update": {
+   "mode": "644",
+   "sha256": "3fff847295b0e8936080052306d9ce9c29dc5624d9d460804f6ffcba19d1b095"
+  },
+  "usr/local/bin/sunshine-update-check": {
+   "mode": "755",
+   "sha256": "a9836b426e5fc87e14854e38f8a963cb8dbc36ee933ed2a4f307d7958ff92c8d"
+  },
+  "usr/local/bin/sunshine-update-notifier": {
+   "mode": "644",
+   "sha256": "a7f587b1cc1ba63d7c39b3b528abdc116ed3cd71477a8203c5e1592c875c55b9"
+  },
+  "usr/local/bin/sunshine-update-run": {
+   "mode": "644",
+   "sha256": "a7f3730a22d206eacef957c5715b2d6602cb47bfd106df62ac04096c77fe1d3f"
+  },
+  "usr/local/bin/sunshine-webapp": {
+   "mode": "755",
+   "sha256": "9b84b517cf5b3157017798d04dcc9544426ed8b9a36bf15c88f13775e7256513"
+  },
+  "usr/local/bin/sunshine-welcome": {
+   "mode": "644",
+   "sha256": "0c7e7c5ae459d9394ea7d29d48a21f3d31572b651f7314d56a4f85d73d2acd24"
+  },
+  "usr/local/lib/sunshine/i18n.py": {
+   "mode": "644",
+   "sha256": "786984ce3710fbb19e906e95add865873eec3403910a6af6d3a23c362997e552"
+  },
+  "usr/local/lib/sunshine/ui.sh": {
+   "mode": "644",
+   "sha256": "f4629dc10e56d1f37e5463ac0bea6c02a412134858e407e38c33d196836051f7"
+  },
+  "usr/share/applications/sunshine-install.desktop": {
+   "mode": "644",
+   "sha256": "07ab47bf2ce7360cfba571476410b2031c6cf89c1b938bd205cdb4bbccf82b2a"
+  },
+  "usr/share/applications/sunshine-pet.desktop": {
+   "mode": "644",
+   "sha256": "2a4709f4ba2d717fbf13e642554f2f3a4cd64978c2181131c9b780b878cd0972"
+  },
+  "usr/share/applications/sunshine-pods.desktop": {
+   "mode": "644",
+   "sha256": "d924364df976e7917ef64088a915b183b27e2af264301441103f4c6812f46549"
+  },
+  "usr/share/applications/sunshine-store.desktop": {
+   "mode": "644",
+   "sha256": "7b2a47b60ef54c305ac7c79a37566d6aeb383d9074563016cf0602331ee37e6d"
+  },
+  "usr/share/applications/sunshine-term.desktop": {
+   "mode": "644",
+   "sha256": "02e672e6ca12d894820d484aba29aeaab01f2b9be29bed8791f7c79dd1d5f445"
+  },
+  "usr/share/applications/sunshine-toolbox.desktop": {
+   "mode": "644",
+   "sha256": "b1058d4a73f72ff03a811a0924f5218e33027f2c851eb378a3a93e5585b9a2ee"
+  },
+  "usr/share/applications/sunshine-update.desktop": {
+   "mode": "644",
+   "sha256": "0d901b260bf86c2231135bd7ba2b1b1af12fd1aa1a77897fc29169e11f8192f8"
+  },
+  "usr/share/applications/sunshine-welcome.desktop": {
+   "mode": "644",
+   "sha256": "f4fef6f5c71b6e88c12b7053d977d041749248f4aef666b422e162b65e43d389"
+  },
+  "usr/share/libalpm/hooks/01-sunshine-timeshift-pre.hook": {
+   "mode": "644",
+   "sha256": "1f674435fa155dd4680d6ed38602100991caadc2300380f7c885aaa9c5b23616"
+  },
+  "usr/share/libalpm/hooks/90-sunshine-identity.hook": {
+   "mode": "644",
+   "sha256": "fcf674e89dc94642d5e5c0457592b2b6ec56280258872f47b6a6501ca22b5863"
+  },
+  "usr/share/libalpm/hooks/90-sunshine-nixos-grub.hook": {
+   "mode": "644",
+   "sha256": "250d65745c8f4db2654e7ab8e4b71dec6c546b6c5dadbbbbf785b9f0ae563400"
+  },
+  "usr/share/libalpm/hooks/91-sunshine-repo.hook": {
+   "mode": "644",
+   "sha256": "61c4a69ee6a4bb335405b711214c22e681b4b445471155559e809c308dce07e4"
+  },
+  "usr/share/libalpm/hooks/92-sunshine-apps.hook": {
+   "mode": "644",
+   "sha256": "fb9a91dd478051a015b4db10147b6ed38cdceae88ccb00532cb9c8661ebf8aa8"
+  },
+  "usr/share/libalpm/hooks/95-sunshine-fastfetch.hook": {
+   "mode": "644",
+   "sha256": "ef41fd0ead0e7ec6dc11393e274022f1adc99884617581b83ea16ce07c85c82c"
+  },
+  "usr/share/libalpm/hooks/96-sunshine-wallpapers.hook": {
+   "mode": "644",
+   "sha256": "35dda67636afa116155f834d07d9b6471d0f31e643b153bd50f75c905ece175a"
+  },
+  "usr/share/plasma/look-and-feel/com.sunshineos.sunshine/contents/defaults": {
+   "mode": "755",
+   "sha256": "1fff8fb6690aa92918f7f36f8640e6a8f9f1aed98ea0cf6907e140639e6675ed"
+  },
+  "usr/share/plasma/look-and-feel/com.sunshineos.sunshine/contents/splash/Splash.qml": {
+   "mode": "644",
+   "sha256": "a9582bffc00ad7edafb830c7b162a158f8a3c838165f6150974232c04e65c1cf"
+  },
+  "usr/share/plasma/look-and-feel/com.sunshineos.sunshine/contents/splash/images/background.jpg": {
+   "mode": "755",
+   "sha256": "d54262032574b15ccf541e40fa13475ffb39d8682c19383e917f3ed5e8bbca71"
+  },
+  "usr/share/plasma/look-and-feel/com.sunshineos.sunshine/contents/splash/images/intro-sheet.png": {
+   "mode": "644",
+   "sha256": "65fed1b9f57926b322ce2affcfe1f6cfadbdd552abb2e30cc92a46db33a22989"
+  },
+  "usr/share/plasma/look-and-feel/com.sunshineos.sunshine/contents/splash/images/kde.svg": {
+   "mode": "644",
+   "sha256": "d55e7ae467c7091e0e7997e585957772100e1bc7b44dc7db7f58da3cf115cea1"
+  },
+  "usr/share/plasma/look-and-feel/com.sunshineos.sunshine/contents/splash/images/logo-sprite.png": {
+   "mode": "644",
+   "sha256": "fa2541be167565f95a3058866d7b973931d9e7070d41778b531068e80926d770"
+  },
+  "usr/share/plasma/look-and-feel/com.sunshineos.sunshine/contents/splash/images/loop-sheet.png": {
+   "mode": "644",
+   "sha256": "48b5099e315bb16b00af6287de8be3d3a974550f05d431d6c4a68660827c0aa2"
+  },
+  "usr/share/plasma/look-and-feel/com.sunshineos.sunshine/contents/splash/images/rectangle.svg": {
+   "mode": "644",
+   "sha256": "f9c5df348023197c32b0e8032ef824849a024c38f31c69c684e41d778e8f4cea"
+  },
+  "usr/share/plasma/look-and-feel/com.sunshineos.sunshine/metadata.desktop": {
+   "mode": "755",
+   "sha256": "bc8c612ac4f0d0821d92b55ceae242a4dfad01cf8110a69bb17d15dddfe8771e"
+  },
+  "usr/share/plasma/look-and-feel/com.sunshineos.sunshine/metadata.json": {
+   "mode": "644",
+   "sha256": "ea790793d586e99b9db26b0d6c815b9001b721e691aceeb4bec674ba46da0693"
+  },
+  "usr/share/plasma/plasmoids/com.sunshineos.graphs/contents/ui/main.qml": {
+   "mode": "644",
+   "sha256": "69b388c3082e1e03e54312e25fa3aebdf99c2f1f6819768bc1f46bb456593c7d"
+  },
+  "usr/share/plasma/plasmoids/com.sunshineos.graphs/metadata.json": {
+   "mode": "644",
+   "sha256": "bf6afb026cb821187190a5f2d56e048336d50d44a55cb85b995d6f3484831d45"
+  },
+  "usr/share/plasma/plasmoids/com.sunshineos.startmenu/contents/ui/main.qml": {
+   "mode": "644",
+   "sha256": "1c6d9fce9b2bffc05ee3b9e2e7f63470b40d95ffe88fc42c7ef3bf9d0c99895a"
+  },
+  "usr/share/plasma/plasmoids/com.sunshineos.startmenu/metadata.json": {
+   "mode": "644",
+   "sha256": "c051421845ac99ad1164d00f41a7a7811e1ef93e19e4f19f726e22d093d8e75e"
+  },
+  "usr/share/plasma/plasmoids/com.sunshineos.updates/contents/ui/main.qml": {
+   "mode": "644",
+   "sha256": "95c35f2b6dd9d2b09988a327a77f1a601d4d957174f8318034f33286f2dc7f69"
+  },
+  "usr/share/plasma/plasmoids/com.sunshineos.updates/metadata.json": {
+   "mode": "644",
+   "sha256": "01213729627f161d86c33392d533c116f6495104d57ffbafe2c5fa77d44ef777"
+  },
+  "usr/share/sunshine/catalogue.toml": {
+   "mode": "644",
+   "sha256": "183998be1c88af81f35a7a2ba9a280c78737214e04b6b1e10d44631697bf8290"
+  },
+  "usr/share/sunshine/i18n/uk.tsv": {
+   "mode": "644",
+   "sha256": "6027ddb8c8843e353866d716df33c55a41c8d678360057a89d74750c04b1f576"
+  }
+ },
+ "version": "2026.11.19.89"
+}

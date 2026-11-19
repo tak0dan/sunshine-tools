@@ -1,0 +1,124 @@
+Sunshine OS update	Оновлення Sunshine OS
+Latest Arch Linux news (read if something looks important)	Останні новини Arch Linux (прочитайте, якщо щось здається важливим)
+Checking for updates	Перевірка оновлень
+Updating system packages	Оновлення системних пакунків
+System packages are up to date	Системні пакунки оновлено
+All done	Усе готово
+Press Enter to close this window.	Натисніть Enter, щоб закрити це вікно.
+Another update or install is running. Close it and try again.	Зараз виконується інше оновлення чи встановлення. Закрийте його й спробуйте ще раз.
+No internet connection. Connect to Wi-Fi or a cable and try again.	Немає інтернету. Підключіться до Wi-Fi або кабелю й спробуйте ще раз.
+No system package updates right now.	Оновлень системних пакунків зараз немає.
+Lock file	Файл блокування
+Keyring	Ключі пакунків
+Mirrors	Дзеркала
+Databases	Бази даних
+Sunshine repository	Репозиторій Sunshine
+AUR helper	Помічник AUR
+Interrupted updates and cached packages	Перервані оновлення та кешовані пакунки
+stale lock removed	застарілий файл блокування видалено
+no lock	блокування немає
+keyring populated	ключі пакунків оновлено
+keyring recreated and populated	ключі пакунків створено заново
+package database checked	базу пакунків перевірено
+Done. Try the update again.	Готово. Спробуйте оновлення ще раз.
+Sunshine OS doctor*	Лікар Sunshine OS*
+Identity	Ідентичність системи
+Package manager	Менеджер пакунків
+Desktop	Робочий стіл
+Boot	Завантаження
+System	Система
+Restore points	Точки відновлення
+this is Sunshine OS*	це Sunshine OS*
+system identity was changed (an update replaced os-release/issue)	ідентичність системи змінено (оновлення замінило os-release/issue)
+identity restored	ідентичність відновлено
+no lock file	файлу блокування немає
+package keyring present	ключі пакунків на місці
+package keyring missing or empty	ключі пакунків відсутні або порожні
+package database consistent	база пакунків узгоджена
+no pending .pacnew files	файлів .pacnew, що чекають, немає
+[sunshine] repository is configured	репозиторій [sunshine] налаштовано
+kernel image present	образ ядра є
+initramfs present	initramfs є
+GRUB menu present	меню GRUB є
+EFI partition mounted	розділ EFI змонтовано
+/etc/fstab consistent	/etc/fstab узгоджений
+no failed services	збійних служб немає
+network service running	мережева служба працює
+running kernel matches installed modules	працююче ядро відповідає встановленим модулям
+daily restore point timer enabled	щоденний таймер точок відновлення увімкнено
+automatic snapshot before/after every update (snap-pac)	автоматичний знімок до й після кожного оновлення (snap-pac)
+snapshots appear in the GRUB menu	знімки з'являються в меню GRUB
+All good*	Усе добре*
+Old package files	Старі файли пакунків
+Unused packages (installed only as dependencies, nothing needs them)	Непотрібні пакунки (встановлені лише як залежності, ніщо їх не потребує)
+Logs and crash dumps	Журнали та дампи збоїв
+Old restore points	Старі точки відновлення
+downloaded files of removed packages cleaned	завантажені файли видалених пакунків очищено
+crash dumps removed	дампи збоїв видалено
+none	немає
+done (the newest ones are kept)	готово (найновіші залишено)
+Freed about*	Звільнено приблизно*
+Kernel and initramfs	Ядро та initramfs
+GRUB	GRUB
+Run this on the installed system, not from the live ISO.	Запускайте це на встановленій системі, а не з живого ISO.
+Done. Restart to test the boot menu.	Готово. Перезавантажте, щоб перевірити меню завантаження.
+Identity OK*	Ідентичність у порядку*
+Identity restored*	Ідентичність відновлено*
+Keep it healthy	Дбайте про здоров'я системи
+Go back in time	Повернутися в минуле
+Repair	Ремонт
+Know your computer	Дізнайтеся свій комп'ютер
+Devices	Пристрої
+Fun	Розваги
+Apps	Програми
+🔄  Update everything	🔄  Оновити все
+System, apps and extras, with restore points	Система, програми та додатки, з точками відновлення
+🩺  Health check	🩺  Перевірка здоров'я
+Find and repair problems (identity, boot, packages, snapshots)	Знайти й виправити проблеми (ідентичність, завантаження, пакунки, знімки)
+🧹  Clean up	🧹  Прибирання
+Free disk space: old downloads, unused packages, logs	Звільнити місце: старі завантаження, непотрібні пакунки, журнали
+📦  Fix the package manager	📦  Полагодити менеджер пакунків
+Lock file, keyring, mirrors, databases	Блокування, ключі, дзеркала, бази даних
+🛟  Restore points	🛟  Точки відновлення
+Browse, restore or delete snapshots (Btrfs Assistant)	Переглянути, відновити чи видалити знімки (Btrfs Assistant)
+➕  Make a restore point now	➕  Створити точку відновлення зараз
+Save the current state before you try something	Зберегти поточний стан, перш ніж щось пробувати
+🥾  Repair the boot loader	🥾  Полагодити завантажувач
+Reinstall GRUB and rebuild boot files	Перевстановити GRUB і перебудувати файли завантаження
+🪪  Check the system identity	🪪  Перевірити ідентичність системи
+Make sure the system is still Sunshine OS	Переконатися, що система досі Sunshine OS
+🖥  System information	🖥  Відомості про систему
+Hardware, kernel, desktop, packages (paste it when asking for help)	Обладнання, ядро, стіл, пакунки (вставте це, коли просите про допомогу)
+💽  Disks and partitions	💽  Диски та розділи
+Partition Manager	Керування розділами
+🌐  Network	🌐  Мережа
+Wi-Fi, cable, VPN	Wi-Fi, кабель, VPN
+⚙  System settings	⚙  Налаштування системи
+Look, keyboard, language, sound	Вигляд, клавіатура, мова, звук
+📱  Phone	📱  Телефон
+Pair a phone with KDE Connect: files, notifications, clipboard	Підключіть телефон через KDE Connect: файли, сповіщення, буфер обміну
+🎧  AirPods	🎧  AirPods
+Battery of each pod and the case, noise control	Заряд кожного навушника й кейса, шумозаглушення
+🐣  Sunshine Pet	🐣  Улюбленець Sunshine
+Feed it, wash it, play with it	Годуйте, мийте, грайте з ним
+🛍  Sunshine Store	🛍  Крамниця Sunshine
+pacman, AUR and Flatpak in one place	pacman, AUR та Flatpak в одному місці
+🌐  Enable Flathub	🌐  Увімкнути Flathub
+Thousands more apps	Тисячі додаткових програм
+Welcome to Sunshine OS	Ласкаво просимо до Sunshine OS
+💿  Install Sunshine OS\nPut Sunshine OS on this computer	💿  Встановити Sunshine OS\nВстановіть Sunshine OS на цей комп'ютер
+🛍  Get apps\nBrowse and install programs	🛍  Отримати програми\nПереглядайте й встановлюйте програми
+🔄  Update everything\nSystem, apps and extras	🔄  Оновити все\nСистема, програми та додатки
+🛟  Restore points\nUndo a bad change (snapshots)	🛟  Точки відновлення\nСкасуйте невдалу зміну (знімки)
+🎨  Restore visuals\nPull the latest themes and apply them (works offline too)	🎨  Відновити вигляд\nЗавантажте найновіші теми й застосуйте їх (працює й офлайн)
+🌐  Enable Flathub\nThousands more apps	🌐  Увімкнути Flathub\nТисячі додаткових програм
+⚙  Settings\nLook, keyboard, language, network	⚙  Налаштування\nВигляд, клавіатура, мова, мережа
+🧰  Toolbox\nHealth check, clean up, repair	🧰  Інструменти\nПеревірка, прибирання, ремонт
+📱  Phone\nPair a phone: files, notifications	📱  Телефон\nПідключіть телефон: файли, сповіщення
+🎧  AirPods\nBattery and noise control	🎧  AirPods\nЗаряд і шумозаглушення
+🐣  Pet\nYour virtual pet	🐣  Улюбленець\nВаш віртуальний улюбленець
+❓  Help && tips\nWhat to do if something is wrong	❓  Допомога й поради\nЩо робити, якщо щось не так
+Show this window at startup	Показувати це вікно під час запуску
+Close	Закрити
+You are running the live session. Nothing is changed on your computer until you install.	Ви працюєте в живому сеансі. Нічого на вашому комп'ютері не змінюється, доки ви не встановите систему.
+Everything is up to date ☀	Усе актуально ☀

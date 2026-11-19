@@ -1,0 +1,329 @@
+# The Sunshine OS app catalogue: ONE list for the installer (checkboxes, groups), the store and the first update.
+# Each [[app]]:
+#   id          short name; the meta-package is sunshine-app-<id>
+#   name, desc  what the user sees
+#   group       System | Development | Internet | Media and games | Notes and AI | Everyday
+#   pacman      packages from the official repos (installed with the system)
+#   aur         packages from the AUR (installed by the AUR helper at the first online update; we do not host third-party binaries)
+#   webapp      { url, name } a web service wrapped as an app window (needs a browser; Chromium-based browsers open it as an app)
+#   setup       a Sunshine setup script that finishes the job (runs after the packages)
+#   first_update  true: offered/installed on the very first update
+#   selected    true: ticked by default in the installer
+# Needs [multilib] in pacman.conf: steam, wine, lib32 packages.
+
+# ------------------------------------------------------------------ Everyday
+[[app]]
+id = "firefox"
+name = "Firefox"
+group = "Everyday"
+desc = "The default web browser"
+pacman = ["firefox"]
+selected = true
+[[app]]
+id = "zen"
+name = "Zen Browser"
+group = "Everyday"
+desc = "A Firefox-based browser focused on calm and privacy"
+aur = ["zen-browser-bin"]
+first_update = true
+[[app]]
+id = "okular"
+name = "Okular"
+group = "Everyday"
+desc = "PDF and Markdown reader (the default for both)"
+pacman = ["okular"]
+selected = true
+[[app]]
+id = "libreoffice"
+name = "LibreOffice"
+group = "Everyday"
+desc = "Documents, spreadsheets, presentations"
+pacman = ["libreoffice-fresh"]
+first_update = true
+[[app]]
+id = "gwenview"
+name = "Gwenview"
+group = "Everyday"
+desc = "Image and video viewer (set as the default for pictures and videos)"
+pacman = ["gwenview"]
+setup = "default-viewer"
+selected = true
+[[app]]
+id = "vlc"
+name = "VLC"
+group = "Media and games"
+desc = "Plays almost any media"
+pacman = ["vlc"]
+[[app]]
+id = "mpv"
+name = "mpv"
+group = "Media and games"
+desc = "Light, fast video player"
+pacman = ["mpv"]
+
+# ------------------------------------------------------------------ Internet
+[[app]]
+id = "brave"
+name = "Brave"
+group = "Internet"
+desc = "Chromium-based browser with built-in blocking"
+aur = ["brave-bin"]
+[[app]]
+id = "chromium"
+name = "Chromium"
+group = "Internet"
+desc = "Open-source Chromium browser"
+pacman = ["chromium"]
+[[app]]
+id = "chrome"
+name = "Google Chrome"
+group = "Internet"
+desc = "Google's browser"
+aur = ["google-chrome"]
+[[app]]
+id = "tor"
+name = "Tor Browser (configured)"
+group = "Internet"
+desc = "Tor Browser with its launcher set up, and a low-level firewall rule set (ufw) that keeps it from leaking"
+pacman = ["torbrowser-launcher", "ufw"]
+setup = "tor-firewall"
+[[app]]
+id = "anydesk"
+name = "AnyDesk"
+group = "Internet"
+desc = "Remote desktop"
+aur = ["anydesk-bin"]
+[[app]]
+id = "discord"
+name = "Discord"
+group = "Internet"
+desc = "Chat and voice"
+pacman = ["discord"]
+[[app]]
+id = "outlook"
+name = "Outlook"
+group = "Internet"
+desc = "Microsoft Outlook mail (web app window)"
+webapp = { url = "https://outlook.live.com/mail/", name = "Outlook" }
+[[app]]
+id = "whatsapp"
+name = "WhatsApp"
+group = "Internet"
+desc = "WhatsApp Web as an app window"
+webapp = { url = "https://web.whatsapp.com/", name = "WhatsApp" }
+
+# ------------------------------------------------------------------ Media and games
+[[app]]
+id = "spotify"
+name = "Spotify"
+group = "Media and games"
+desc = "Music streaming"
+aur = ["spotify"]
+[[app]]
+id = "netflix"
+name = "Netflix"
+group = "Media and games"
+desc = "Netflix as an app window"
+webapp = { url = "https://www.netflix.com/", name = "Netflix" }
+[[app]]
+id = "steam"
+name = "Steam"
+group = "Media and games"
+desc = "Game store and launcher (needs the multilib repository)"
+pacman = ["steam"]
+[[app]]
+id = "heroic"
+name = "Heroic (GOG and Epic launcher)"
+group = "Media and games"
+desc = "One launcher for GOG and Epic Games"
+aur = ["heroic-games-launcher-bin"]
+[[app]]
+id = "wine"
+name = "Wine"
+group = "Media and games"
+desc = "Runs Windows programs"
+pacman = ["wine", "wine-mono", "wine-gecko", "winetricks"]
+[[app]]
+id = "protonge"
+name = "Proton-GE"
+group = "Media and games"
+desc = "Community Proton for Steam games"
+aur = ["proton-ge-custom-bin"]
+[[app]]
+id = "bottles"
+name = "Bottles"
+group = "Media and games"
+desc = "Windows programs in managed bottles"
+aur = ["bottles"]
+[[app]]
+id = "piper"
+name = "Piper"
+group = "Media and games"
+desc = "Gaming mouse settings"
+pacman = ["piper", "libratbag"]
+
+# ------------------------------------------------------------------ Development
+[[app]]
+id = "vi"
+name = "vi"
+group = "Development"
+desc = "The classic editor"
+pacman = ["ex-vi-compat"]
+[[app]]
+id = "vim"
+name = "Vim"
+group = "Development"
+desc = "Vim editor"
+pacman = ["vim"]
+[[app]]
+id = "neovim"
+name = "Neovim"
+group = "Development"
+desc = "Neovim editor"
+pacman = ["neovim"]
+[[app]]
+id = "vscode"
+name = "Visual Studio Code"
+group = "Development"
+desc = "Microsoft's code editor"
+aur = ["visual-studio-code-bin"]
+[[app]]
+id = "vscodium"
+name = "VSCodium"
+group = "Development"
+desc = "VS Code without Microsoft's telemetry"
+aur = ["vscodium-bin"]
+[[app]]
+id = "pycharm"
+name = "PyCharm Community"
+group = "Development"
+desc = "Python IDE"
+pacman = ["pycharm-community-edition"]
+[[app]]
+id = "sublime"
+name = "Sublime Text"
+group = "Development"
+desc = "Fast text editor"
+aur = ["sublime-text-4"]
+[[app]]
+id = "netbeans"
+name = "NetBeans"
+group = "Development"
+desc = "Java IDE"
+pacman = ["netbeans"]
+[[app]]
+id = "eclipse"
+name = "Eclipse (Java)"
+group = "Development"
+desc = "Java IDE"
+aur = ["eclipse-java-bin"]
+[[app]]
+id = "mysql-workbench"
+name = "MySQL Workbench with MariaDB"
+group = "Development"
+desc = "Database tool; MariaDB is installed and a database user named like the account is created (socket login, no extra password)"
+pacman = ["mysql-workbench", "mariadb"]
+setup = "mariadb-user"
+[[app]]
+id = "github-desktop"
+name = "GitHub Desktop"
+group = "Development"
+desc = "GitHub's graphical client (community Linux build from the AUR)"
+aur = ["github-desktop-bin"]
+pacman = ["git", "github-cli"]
+[[app]]
+id = "gitkraken"
+name = "GitKraken"
+group = "Development"
+desc = "Git client"
+aur = ["gitkraken"]
+[[app]]
+id = "alacritty"
+name = "Alacritty"
+group = "Development"
+desc = "Fast terminal (Sunshine theme)"
+pacman = ["alacritty"]
+[[app]]
+id = "ghostty"
+name = "Ghostty"
+group = "Development"
+desc = "Terminal (Sunshine theme)"
+pacman = ["ghostty"]
+
+# ------------------------------------------------------------------ System
+[[app]]
+id = "blackarch"
+name = "BlackArch repository"
+group = "System"
+desc = "Adds the BlackArch security-tools repository (downloads and verifies the official strap script)"
+setup = "blackarch"
+[[app]]
+id = "printing"
+name = "Printer support"
+group = "System"
+desc = "CUPS drivers and tools for most printers and scanners"
+pacman = ["cups", "cups-pdf", "gutenprint", "foomatic-db", "foomatic-db-engine", "hplip", "sane", "system-config-printer", "print-manager"]
+setup = "printing"
+[[app]]
+id = "kernel-zen"
+name = "Linux Zen kernel"
+group = "System"
+desc = "Desktop-tuned kernel, installed next to the standard one"
+pacman = ["linux-zen", "linux-zen-headers"]
+setup = "kernel-menu"
+[[app]]
+id = "kernel-lts"
+name = "Linux LTS kernel"
+group = "System"
+desc = "Long-term-support kernel as a fallback"
+pacman = ["linux-lts", "linux-lts-headers"]
+setup = "kernel-menu"
+[[app]]
+id = "virtualbox"
+name = "VirtualBox"
+group = "System"
+desc = "Virtual machines"
+pacman = ["virtualbox", "virtualbox-host-dkms", "virtualbox-guest-iso"]
+setup = "vbox-group"
+[[app]]
+id = "qemu"
+name = "QEMU and virt-manager"
+group = "System"
+desc = "Fast virtual machines with a graphical manager"
+pacman = ["qemu-desktop", "virt-manager", "libvirt", "edk2-ovmf", "dnsmasq", "swtpm"]
+setup = "libvirt-group"
+
+# ------------------------------------------------------------------ Notes and AI
+[[app]]
+id = "obsidian"
+name = "Obsidian"
+group = "Notes and AI"
+desc = "Markdown notes"
+pacman = ["obsidian"]
+[[app]]
+id = "notion"
+name = "Notion"
+group = "Notes and AI"
+desc = "Notion as an app window"
+webapp = { url = "https://www.notion.so/", name = "Notion" }
+[[app]]
+id = "claude"
+name = "Claude (CLI and desktop)"
+group = "Notes and AI"
+desc = "Claude Code in the terminal and the Claude desktop app, both from the AUR"
+aur = ["claude-code", "claude-desktop"]
+[[app]]
+id = "kando"
+name = "Kando"
+group = "Notes and AI"
+desc = "Pie menu launcher (Sunshine theme)"
+aur = ["kando-bin"]
+setup = "kando-theme"
+[[app]]
+id = "pamac"
+name = "Pamac"
+group = "Notes and AI"
+desc = "Graphical package manager (Sunshine theme)"
+aur = ["pamac-aur"]
+setup = "pamac-theme"
+

@@ -1,0 +1,9 @@
+[Trigger]
+Operation = Install
+Type = Package
+Target = sunshine-app-*
+
+[Action]
+Description = Finishing the chosen Sunshine apps (AUR packages, setup, web apps)...
+When = PostTransaction
+Exec = /usr/local/bin/sunshine-apps apply

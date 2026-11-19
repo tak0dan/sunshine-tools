@@ -1,0 +1,12 @@
+[Trigger]
+Operation = Upgrade
+Type = Package
+Target = grub
+Target = linux
+Target = linux-zen
+Target = linux-lts
+
+[Action]
+Description = Adding NixOS to the GRUB menu if it is installed...
+When = PostTransaction
+Exec = /usr/local/bin/sunshine-nixos-grub

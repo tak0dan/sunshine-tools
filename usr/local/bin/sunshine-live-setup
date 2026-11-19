@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Live session only: give the live user a home built from /etc/skel (the ISO ships a pre-made, empty home).
+U=sunshine
+/usr/local/bin/sunshine-identity apply --quiet 2>/dev/null   # /usr/lib/os-release still says Arch inside the image
+[ -d /home/$U ] || mkdir -p /home/$U
+cp -an /etc/skel/. /home/$U/ 2>/dev/null
+chown -R $U:$U /home/$U
+# Live session only: the live user has no password, so the screen must never lock, dim, switch off or suspend
+# during a long install. (An installed system keeps the normal Plasma defaults.)
+C=/home/$U/.config
+mkdir -p "$C"
+printf '\n[Daemon]\nAutolock=false\nLockOnResume=false\n' >> "$C/kscreenlockerrc"
+for p in AC Battery LowBattery; do
+  printf '\n[%s][Display]\nDimDisplayWhenIdle=false\nTurnOffDisplayWhenIdle=false\n\n[%s][SuspendAndShutdown]\nAutoSuspendAction=0\n' "$p" "$p" >> "$C/powerdevilrc"
+done
+# Virtual machines (software rendering): no blur, wobbly windows or animations, so Plasma starts and stays responsive
+if systemd-detect-virt -q 2>/dev/null; then
+  printf '\n[Plugins]\nblurEnabled=false\nwobblywindowsEnabled=false\ncontrastEnabled=false\nslidingpopupsEnabled=false\ntranslucencyEnabled=false\n' >> "$C/kwinrc"
+  printf '\n[KDE]\nAnimationDurationFactor=0\n' >> "$C/kdeglobals"
+fi
+chown -R $U:$U "$C"

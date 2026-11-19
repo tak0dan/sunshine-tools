@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# "Restore visuals": pulls the Sunshine themes and configs from the repository into ~/.local/share/sunshine/visuals/<date> and applies them.
+# Offline: applies the ones already on the system. usage: sunshine-restore-visuals [--offline]
+. /usr/local/lib/sunshine/ui.sh 2>/dev/null
+REPO=${SUNSHINE_ASSETS_REPO:-https://github.com/tak0dan/sunshineos-assets.git}
+DEST=$HOME/.local/share/sunshine/visuals; STAMP=$(date +%Y%m%d-%H%M%S); NEW=$DEST/$STAMP; mkdir -p "$DEST"
+online=false; [ "${1:-}" != --offline ] && curl -fsI --max-time 6 https://github.com >/dev/null 2>&1 && online=true
+if $online; then
+  sec "Pulling the latest themes and configs"
+  if git clone -q --depth 1 "$REPO" "$NEW/src" 2>/dev/null; then
+    mkdir -p "$NEW/backup"
+    # configs: the replaced files are kept in the backup directory first
+    if [ -d "$NEW/src/config" ]; then
+      for f in "$NEW/src/config"/*; do n=$(basename "$f"); [ -e "$HOME/.config/$n" ] && cp -a "$HOME/.config/$n" "$NEW/backup/" 2>/dev/null; cp -a "$f" "$HOME/.config/"; done
+    fi
+    [ -d "$NEW/src/share" ] && cp -a "$NEW/src/share/." "$HOME/.local/share/"
+    [ -d "$HOME/.config/Kvantum/Sunshine" ] || { mkdir -p "$HOME/.config/Kvantum"; cp -a "$NEW/src/share/Kvantum/." "$HOME/.config/Kvantum/" 2>/dev/null; }
+    ok "pulled into $NEW (replaced configs are in $NEW/backup)"
+    ls -1dt "$DEST"/20* 2>/dev/null | tail -n +4 | while read -r old; do rm -rf "$old"; done       # keep the last 3 pulls
+  else bad "could not pull from the repository; applying what is installed"; fi
+else echo "offline: applying the themes that are already installed"; fi
+sec "Applying"
+# GTK and Kvantum settings: the defaults every new user gets (/etc/skel) are used when the files are missing, so offline restore still covers GTK apps
+for f in gtk-3.0/settings.ini gtk-4.0/settings.ini gtk-3.0/gtk.css gtk-4.0/gtk.css Kvantum/kvantum.kvconfig; do
+  [ -f "$HOME/.config/$f" ] || { [ -f "/etc/skel/.config/$f" ] && install -D -m 644 "/etc/skel/.config/$f" "$HOME/.config/$f"; }
+done
+[ -x /usr/local/bin/sunshine-plasma-setup ] && /usr/local/bin/sunshine-plasma-setup --reapply >/dev/null 2>&1
+command -v plasma-apply-colorscheme >/dev/null && plasma-apply-colorscheme SunshineDark >/dev/null 2>&1
+command -v plasma-apply-desktoptheme >/dev/null && plasma-apply-desktoptheme Sunshine >/dev/null 2>&1
+kwriteconfig6 --file kdeglobals --group KDE --key widgetStyle kvantum 2>/dev/null
+kwriteconfig6 --file kwinrc --group org.kde.kdecoration2 --key theme __aurorae__svg__Sunshine 2>/dev/null
+qdbus6 org.kde.KWin /KWin reconfigure >/dev/null 2>&1
+# say what is really in place, not what was hoped for
+missing=()
+have_dir() { [ -d "/usr/share/$1" ] || [ -d "$HOME/.local/share/$1" ]; }
+have_dir plasma/desktoptheme/Sunshine || missing+=("Plasma theme")
+have_dir aurorae/themes/Sunshine || missing+=("window frame")
+{ have_dir Kvantum/Sunshine || [ -d "$HOME/.config/Kvantum/Sunshine" ]; } || missing+=("Kvantum style")
+{ [ -f /usr/share/color-schemes/SunshineDark.colors ] || [ -f "$HOME/.local/share/color-schemes/SunshineDark.colors" ]; } || missing+=("colour scheme")
+grep -q '^gtk-theme-name' "$HOME/.config/gtk-3.0/settings.ini" 2>/dev/null || missing+=("GTK settings")
+if [ ${#missing[@]} -eq 0 ]; then ok "visuals restored"; cozy_done 2>/dev/null
+else bad "visuals only partly restored; missing: ${missing[*]} (connect to the internet and run this again)"; exit 1; fi

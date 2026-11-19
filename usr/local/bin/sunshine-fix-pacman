@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# Repairs the package manager and the AUR helper. Steps taken from what Garuda (garuda-update, garuda-health) and EndeavourOS
+# (eos-update, reflector-simple, eos-rankmirrors) do, adapted: stale lock, keyring reset, mirror ranking with fallbacks, broken or
+# partial databases, interrupted transactions, corrupt cached packages, pacman.conf sanity, the Sunshine repository, the AUR helper.
+# Every step reports what really happened: a step that failed is shown as failed and the exit status is 1.
+# usage: sunshine-fix-pacman [--reset-keys]
+[ "$(id -u)" -eq 0 ] || exec sudo "$0" "$@"
+[ -r /usr/local/lib/sunshine/ui.sh ] && . /usr/local/lib/sunshine/ui.sh || { sec() { echo "* $*"; }; ok() { echo "+ $*"; }; bad() { echo "x $*"; }; t() { printf '%s' "${2:-$1}"; }; loc() { printf '%s' "$*"; }; Y=; G=; R=; B=; N=; }
+fails=0
+fail() { fails=$((fails + 1)); bad "$*"; }
+
+sec "$(t repair_lock 'Lock file')"
+if [ -e /var/lib/pacman/db.lck ]; then
+  if pgrep -x pacman >/dev/null; then fail "pacman is running right now; close it first."; exit 1; fi
+  rm -f /var/lib/pacman/db.lck && ok "stale lock removed" || fail "could not remove /var/lib/pacman/db.lck"
+else ok "no lock"; fi
+
+sec "pacman.conf"
+if grep -q '^\[core\]' /etc/pacman.conf && grep -q '^\[extra\]' /etc/pacman.conf; then ok "pacman.conf has core and extra"
+elif [ -f /etc/pacman.conf.pacnew ]; then cp /etc/pacman.conf /etc/pacman.conf.broken && cp /etc/pacman.conf.pacnew /etc/pacman.conf && ok "core/extra were missing: restored the packaged pacman.conf (old one kept as pacman.conf.broken)"
+else fail "core/extra are missing from /etc/pacman.conf and there is no packaged copy to restore"; fi
+grep -q '^ParallelDownloads' /etc/pacman.conf || sed -i 's/^#ParallelDownloads.*/ParallelDownloads = 5/' /etc/pacman.conf
+
+sec "$(t repair_keyring 'Keyring')"           # garuda-update: reset the keyring when it is broken
+reset_keyring() {
+  local g=/etc/pacman.d/gnupg
+  if mountpoint -q "$g"; then find "$g" -mindepth 1 -delete 2>/dev/null          # live session: the directory is a mount, empty it instead
+  else rm -rf "$g"; fi
+  [ -z "$(ls -A "$g" 2>/dev/null)" ] || return 1                                    # still there: do not claim success
+  pacman-key --init >/dev/null 2>&1 && pacman-key --populate >/dev/null 2>&1
+}
+if [ "${1:-}" = --reset-keys ] || ! pacman-key --list-keys >/dev/null 2>&1; then
+  if reset_keyring; then ok "keyring recreated and populated"; else fail "the keyring could not be recreated (the directory is busy or init failed)"; fi
+elif pacman-key --populate >/dev/null 2>&1; then ok "keyring populated"
+else fail "pacman-key --populate failed"; fi
+
+sec "$(t repair_mirrors 'Mirrors')"            # eos-rankmirrors / reflector-simple: rank, keep a backup, fall back to the old list
+cp -n /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.sunshine-backup
+new=$(mktemp)
+if command -v rate-mirrors >/dev/null && rate-mirrors --allow-root --protocol https --save="$new" arch >/dev/null 2>&1 && grep -q '^Server' "$new"; then
+  install -m644 "$new" /etc/pacman.d/mirrorlist && ok "mirrors ranked (rate-mirrors)"
+elif command -v reflector >/dev/null && reflector --latest 20 --protocol https --sort rate --save "$new" >/dev/null 2>&1 && grep -q '^Server' "$new"; then
+  install -m644 "$new" /etc/pacman.d/mirrorlist && ok "mirrors ranked (reflector)"
+else echo "$(loc "mirror ranking was not possible (no tool, or no network): keeping the current list")"; fi
+rm -f "$new"
+grep -q '^Server' /etc/pacman.d/mirrorlist || { cp /etc/pacman.d/mirrorlist.sunshine-backup /etc/pacman.d/mirrorlist; grep -q '^Server' /etc/pacman.d/mirrorlist || echo 'Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch' >> /etc/pacman.d/mirrorlist; bad "no usable mirror: restored the backup / added the Arch geo mirror"; }
+
+sec "Sunshine repository"
+/usr/local/bin/sunshine-repo ensure && ok "[sunshine] repository is configured" || fail "could not configure the [sunshine] repository"
+
+sec "$(t repair_db 'Databases')"               # damaged sync databases are removed so they download again
+for db in /var/lib/pacman/sync/*.db; do [ -f "$db" ] && ! bsdtar -tf "$db" >/dev/null 2>&1 && { rm -f "$db"; echo "removed damaged $(basename "$db")"; }; done
+if out=$(pacman -Syy --noconfirm 2>&1); then ok "package databases synchronised"; else fail "could not synchronise the package databases: $(printf '%s' "$out" | tail -1)"; fi
+
+sec "Interrupted updates and cached packages"   # a failed transaction leaves partial downloads and bad cache files
+find /var/cache/pacman/pkg -name '*.part' -delete 2>/dev/null; find /var/cache/pacman/pkg -maxdepth 1 -name 'download-*' -type d -exec rm -rf {} + 2>/dev/null
+for p in /var/cache/pacman/pkg/*.pkg.tar.zst; do [ -f "$p" ] && ! zstd -tq "$p" 2>/dev/null && { rm -f "$p" "$p.sig"; echo "removed corrupt $(basename "$p")"; }; done
+if out=$(pacman -S --needed --noconfirm archlinux-keyring 2>&1); then ok "archlinux-keyring is current"; else fail "archlinux-keyring: $(printf '%s' "$out" | tail -1)"; fi
+if out=$(pacman -Dk 2>&1); then ok "package database is consistent"; else fail "package database problems: $(printf '%s' "$out" | head -2 | tr '\n' ' ')"; fi
+
+sec "AUR helper"                                   # paru / yay
+found=0
+for h in paru yay; do
+  command -v "$h" >/dev/null || continue
+  found=1
+  if "$h" --version >/dev/null 2>&1; then ok "$h works"
+  else
+    bad "$h does not start (broken libalpm after an update?): reinstalling"
+    if pacman -S --noconfirm "$h" >/dev/null 2>&1 || pacman -S --noconfirm "$h-bin" >/dev/null 2>&1; then "$h" --version >/dev/null 2>&1 && ok "$h reinstalled" || fail "$h still does not start"
+    else fail "could not reinstall $h"; fi
+  fi
+done
+[ $found = 1 ] || echo "$(loc "no AUR helper installed (paru-bin is in the [sunshine] repository: sudo pacman -S paru-bin)")"
+
+echo
+if [ "$fails" -eq 0 ]; then printf '%s\n' "$(t repair_done 'Done. Try the update again.')"; exit 0
+else bad "$fails step(s) failed: the package manager may still be broken (see above)"; exit 1; fi

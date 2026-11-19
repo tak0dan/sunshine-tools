@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Sunshine OS kernel manager (after Garuda's kernel manager and CachyOS's): several kernels side by side, each in the boot menu.
+#   sunshine-kernel list               installed kernels (the running one is marked) and the default boot entry
+#   sunshine-kernel available          kernels you can install from the enabled repositories
+#   sunshine-kernel install NAME       install a kernel with its headers (linux, linux-lts, linux-zen, linux-hardened, linux-rt-lts, linux-cachyos ...)
+#   sunshine-kernel remove NAME        remove a kernel (never the running one, never the last one)
+#   sunshine-kernel default NAME       boot this kernel by default
+#   sunshine-kernel rebuild            rebuild every initramfs and the boot menu
+[ "$(id -u)" -eq 0 ] || exec sudo "$0" "$@"
+[ -r /usr/local/lib/sunshine/ui.sh ] && . /usr/local/lib/sunshine/ui.sh || { sec() { echo "* $*"; }; ok() { echo "+ $*"; }; bad() { echo "x $*"; }; loc() { printf '%s' "$*"; }; Y=; G=; R=; B=; N=; }
+[ -d /run/archiso ] && { bad "$(loc "Run this on the installed system (kernels of the live session are not managed).")"; exit 1; }
+KRE='^linux(-(lts|zen|hardened|rt|rt-lts|cachyos|cachyos-lts|cachyos-bore|cachyos-rc|xanmod|mainline|clear|tkg-[a-z0-9]+))?$'
+installed() { pacman -Qq 2>/dev/null | grep -E "$KRE"; }
+running_pkg() { local b; b=$(cat "/usr/lib/modules/$(uname -r)/pkgbase" 2>/dev/null); echo "${b:-linux}"; }
+regen_menu() {
+  [ -x /usr/bin/grub-mkconfig ] || { echo "$(loc "no GRUB here: the boot loader menu was not rebuilt")"; return 0; }
+  grep -q '^GRUB_DISABLE_SUBMENU=y' /etc/default/grub || { grep -q '^#\?GRUB_DISABLE_SUBMENU' /etc/default/grub && sed -i 's/^#\?GRUB_DISABLE_SUBMENU.*/GRUB_DISABLE_SUBMENU=y/' /etc/default/grub || echo 'GRUB_DISABLE_SUBMENU=y' >> /etc/default/grub; }   # flat menu: every kernel is one entry
+  grub-mkconfig -o /boot/grub/grub.cfg >/tmp/sunshine-kernel-grub.log 2>&1 && grep -q menuentry /boot/grub/grub.cfg && ok "$(loc "boot menu rebuilt")" || { bad "grub-mkconfig failed: $(tail -2 /tmp/sunshine-kernel-grub.log | tr '\n' ' ')"; return 1; }
+}
+cmd=${1:-list}; k=${2:-}
+case "$cmd" in
+  list)
+    run=$(running_pkg)
+    printf '%s\n' "${Y}${B}$(loc "Installed kernels")${N}"
+    for p in $(installed); do
+      printf '  %-22s %-16s %s\n' "$p" "$(pacman -Q "$p" | awk '{print $2}')" "$([ "$p" = "$run" ] && echo "<- $(loc "running now")")"
+    done
+    d=$(grep -m1 '^GRUB_DEFAULT=' /etc/default/grub 2>/dev/null | cut -d= -f2-); echo; echo "$(loc "Default boot entry"): ${d:-?}" ;;
+  available)
+    echo "${Y}${B}$(loc "Kernels in the enabled repositories")${N}"
+    for p in $(pacman -Ssq '^linux' 2>/dev/null | grep -E "$KRE" | sort -u); do
+      mark=; pacman -Qq "$p" >/dev/null 2>&1 && mark="($(loc "installed"))"
+      printf '  %-22s %s %s\n' "$p" "$(pacman -Si "$p" 2>/dev/null | awk -F': *' '/^Repository/{r=$2} /^Version/{v=$2} END{print r" "v}')" "$mark"
+    done ;;
+  install)
+    [ -n "$k" ] || { echo "usage: sunshine-kernel install NAME"; exit 2; }
+    echo "$k" | grep -Eq "$KRE" || { bad "$k: $(loc "is not a kernel package name this tool manages")"; exit 2; }
+    pacman -Si "$k" >/dev/null 2>&1 || { bad "$k: $(loc "is not in any enabled repository (try: sunshine-update, or enable Chaotic-AUR for the CachyOS kernels)")"; exit 1; }
+    sec "Installing $k"
+    hdr=; pacman -Si "$k-headers" >/dev/null 2>&1 && hdr="$k-headers"
+    pacman -S --noconfirm --needed "$k" $hdr || { bad "$(loc "installation failed; nothing was changed in the boot menu")"; exit 1; }
+    [ -f "/boot/vmlinuz-${k}" ] || { [ -f "/usr/lib/modules/$(ls -t /usr/lib/modules | head -1)/vmlinuz" ] || bad "/boot/vmlinuz-$k $(loc "is missing")"; }
+    regen_menu; ok "$k $(loc "installed; choose it in the boot menu, or make it the default with: sunshine-kernel default") $k" ;;
+  remove)
+    [ -n "$k" ] || { echo "usage: sunshine-kernel remove NAME"; exit 2; }
+    pacman -Qq "$k" >/dev/null 2>&1 || { bad "$k: $(loc "is not installed")"; exit 1; }
+    [ "$k" = "$(running_pkg)" ] && { bad "$(loc "this is the running kernel: boot another one first")"; exit 1; }
+    [ "$(installed | wc -l)" -le 1 ] && { bad "$(loc "that is the last kernel; the system would not boot")"; exit 1; }
+    pacman -Rns --noconfirm "$k" $(pacman -Qq "$k-headers" 2>/dev/null) && ok "$k $(loc "removed")"; regen_menu ;;
+  default)
+    [ -n "$k" ] || { echo "usage: sunshine-kernel default NAME"; exit 2; }
+    pacman -Qq "$k" >/dev/null 2>&1 || { bad "$k: $(loc "is not installed")"; exit 1; }
+    regen_menu || exit 1
+    title=$(awk -v k="$k" -F"'" '/^menuentry /{ if ($2 ~ ("with Linux " k "$") ) {print $2; exit} }' /boot/grub/grub.cfg)
+    [ -n "$title" ] || title=$(awk -v k="$k" -F"'" '/^menuentry /{ if (index($2, "Linux " k)>0 && $2 !~ /fallback/) {print $2; exit} }' /boot/grub/grub.cfg)
+    [ -n "$title" ] || { bad "$(loc "no boot entry found for") $k"; exit 1; }
+    grep -q '^GRUB_DEFAULT=saved' /etc/default/grub || sed -i 's/^GRUB_DEFAULT=.*/GRUB_DEFAULT=saved/' /etc/default/grub
+    grep -q '^GRUB_SAVEDEFAULT' /etc/default/grub && sed -i 's/^GRUB_SAVEDEFAULT=.*/GRUB_SAVEDEFAULT=false/' /etc/default/grub || echo 'GRUB_SAVEDEFAULT=false' >> /etc/default/grub
+    grub-set-default "$title" && regen_menu && ok "$(loc "default boot entry"): $title" ;;
+  rebuild) mkinitcpio -P >/tmp/sunshine-kernel-mk.log 2>&1 && ok "$(loc "initramfs rebuilt")" || { bad "mkinitcpio: $(tail -2 /tmp/sunshine-kernel-mk.log | tr '\n' ' ')"; exit 1; }; regen_menu ;;
+  *) sed -n 2,9p "$0"; exit 2 ;;
+esac

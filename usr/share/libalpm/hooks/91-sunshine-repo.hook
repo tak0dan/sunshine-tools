@@ -1,0 +1,11 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = pacman
+Target = sunshine-base
+
+[Action]
+Description = Making sure the [sunshine] package repository is still in pacman.conf...
+When = PostTransaction
+Exec = /usr/local/bin/sunshine-repo ensure --quiet

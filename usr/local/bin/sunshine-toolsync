@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Sunshine OS tool sync: brings the Sunshine tools (scripts, library, translations, widgets, hooks) up to date from the tools repository
+# (https://github.com/tak0dan/sunshine-tools) without a new ISO and without waiting for a package. sunshine-update runs it first, so every
+# update starts with the newest repair tools. Releases are signed with the Sunshine OS key; an unsigned or altered release is refused.
+#   sunshine-toolsync status      installed tools version and what the repository offers
+#   sunshine-toolsync update      install the newest tools (only files that differ; the old ones are kept for rollback)
+#   sunshine-toolsync rollback    put back the files of the previous update
+#   sunshine-toolsync verify      check the installed tools against the manifest of the installed version
+# The files it may touch are limited to the Sunshine paths listed in ALLOW below; it never touches your own files.
+[ "$(id -u)" -eq 0 ] || exec sudo "$0" "$@"
+[ -r /usr/local/lib/sunshine/ui.sh ] && . /usr/local/lib/sunshine/ui.sh || { sec() { echo "* $*"; }; ok() { echo "+ $*"; }; bad() { echo "x $*"; }; loc() { printf '%s' "$*"; }; Y=; G=; R=; B=; N=; }
+BASE=${SUNSHINE_TOOLS_URL:-https://github.com/tak0dan/sunshine-tools/releases/download/tools}
+KEY=${SUNSHINE_TOOLS_KEY:-/usr/share/pacman/keyrings/sunshine.gpg}
+STATE=/var/lib/sunshine; mkdir -p "$STATE"
+VERFILE=$STATE/tools-version
+ALLOW='^(usr/local/bin/sunshine-[a-z0-9-]+|usr/local/lib/sunshine/[A-Za-z0-9._/-]+|usr/share/sunshine/[A-Za-z0-9._/@-]+|usr/share/plasma/plasmoids/com\.sunshineos\.[a-z]+/[A-Za-z0-9._/-]+|usr/share/plasma/look-and-feel/com\.sunshineos\.[a-z]+/[A-Za-z0-9._/-]+|usr/share/libalpm/hooks/[0-9]+-sunshine-[a-z-]+\.hook|usr/share/applications/sunshine-[a-z-]+\.desktop)$'
+die() { bad "$*"; exit 1; }
+have_net() { curl -fsS --max-time 8 -o /dev/null -I "$BASE/manifest.json" 2>/dev/null; }
+fetch() { curl -fsSL --max-time 120 --retry 2 -o "$2" "$1"; }
+verify_sig() {   # verify_sig FILE SIG: signed by the Sunshine OS key
+  local gh; gh=$(mktemp -d); chmod 700 "$gh"
+  gpg --homedir "$gh" --batch --quiet --import "$KEY" 2>/dev/null || { rm -rf "$gh"; return 1; }
+  gpg --homedir "$gh" --batch --quiet --verify "$2" "$1" 2>/dev/null; local rc=$?
+  rm -rf "$gh"; return $rc
+}
+remote_version() { fetch "$BASE/manifest.json" - 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])' 2>/dev/null; }
+local_version() { cat "$VERFILE" 2>/dev/null || echo "none"; }
+
+cmd=${1:-status}
+case "$cmd" in
+  status)
+    echo "$(loc "installed tools version"): $(local_version)"
+    if have_net; then echo "$(loc "repository offers"): $(remote_version)"; else echo "$(loc "repository: not reachable (offline?)")"; fi ;;
+  update)
+    have_net || { echo "$(loc "tools repository not reachable: keeping the installed tools")"; exit 0; }
+    T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+    fetch "$BASE/manifest.json" "$T/manifest.json" && fetch "$BASE/manifest.json.sig" "$T/manifest.json.sig" || die "$(loc "could not download the manifest")"
+    verify_sig "$T/manifest.json" "$T/manifest.json.sig" || die "$(loc "the manifest signature is not valid: refusing this release")"
+    new=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$T/manifest.json") || die "manifest unreadable"
+    cur=$(local_version)
+    [ "$new" = "$cur" ] && [ "${2:-}" != --force ] && { ok "$(loc "tools are up to date") ($cur)"; exit 0; }
+    fetch "$BASE/sunshine-tools.tar.gz" "$T/tools.tgz" || die "$(loc "could not download the tools archive")"
+    # the archive is only trusted through the signed manifest: every file's checksum must match it
+    mkdir "$T/x"; tar -C "$T/x" -xzf "$T/tools.tgz" --no-same-owner --no-same-permissions 2>/dev/null || die "$(loc "the archive is damaged")"
+    BK=$STATE/tools-backup/$(date +%Y%m%d-%H%M%S); n=0; skipped=0
+    while IFS=$'\t' read -r path sum mode; do
+      printf '%s' "$path" | grep -Eq "$ALLOW" || { echo "$(loc "refused (outside the Sunshine paths)"): $path"; skipped=$((skipped+1)); continue; }
+      case "$path" in *..*) skipped=$((skipped+1)); continue;; esac
+      src=$T/x/$path
+      [ -f "$src" ] && [ ! -L "$src" ] || { echo "$(loc "missing in the archive"): $path"; skipped=$((skipped+1)); continue; }
+      [ "$(sha256sum "$src" | cut -d' ' -f1)" = "$sum" ] || { echo "$(loc "checksum mismatch, refused"): $path"; skipped=$((skipped+1)); continue; }
+      dest=/$path
+      if [ -f "$dest" ] && [ "$(sha256sum "$dest" | cut -d' ' -f1)" = "$sum" ]; then continue; fi
+      [ -e "$dest" ] && { mkdir -p "$BK/$(dirname "$path")"; cp -a "$dest" "$BK/$path"; } || { mkdir -p "$BK/.new"; echo "$path" >> "$BK/.new/list"; }
+      mkdir -p "$(dirname "$dest")"; install -m "${mode:-644}" "$src" "$dest.new.$$" && mv -f "$dest.new.$$" "$dest" && n=$((n+1))
+    done < <(python3 -c '
+import json,sys
+m=json.load(open(sys.argv[1]))
+for p,v in sorted(m["files"].items()): print("%s\t%s\t%s" % (p, v["sha256"], v.get("mode","644")))' "$T/manifest.json")
+    echo "$new" > "$VERFILE"; cp "$T/manifest.json" "$STATE/tools-manifest.json"
+    [ -d "$BK" ] && ln -sfn "$BK" "$STATE/tools-backup/latest"
+    ok "$(loc "tools updated"): $cur -> $new ($n $(loc "files changed"), $skipped $(loc "refused"))"
+    # a new plasmoid or look-and-feel needs the shell to notice: nothing to do now, it loads at the next login
+    ;;
+  rollback)
+    BK=$(readlink -f "$STATE/tools-backup/latest" 2>/dev/null); [ -d "$BK" ] || die "$(loc "nothing to roll back")"
+    (cd "$BK" && find . -type f ! -path './.new/*' | sed 's|^\./||' | while read -r p; do printf '%s' "$p" | grep -Eq "$ALLOW" && install -D -m "$(stat -c %a "$p")" "$p" "/$p"; done)
+    [ -f "$BK/.new/list" ] && while read -r p; do printf '%s' "$p" | grep -Eq "$ALLOW" && rm -f "/$p"; done < "$BK/.new/list"
+    rm -f "$STATE/tools-backup/latest" "$VERFILE"; ok "$(loc "previous tools put back")" ;;
+  verify)
+    [ -f "$STATE/tools-manifest.json" ] || die "$(loc "no manifest: tools were never synced (they come from the image)")"
+    bad_n=0; while IFS=$'\t' read -r path sum; do
+      [ "$(sha256sum "/$path" 2>/dev/null | cut -d' ' -f1)" = "$sum" ] || { bad "$(loc "differs")": /$path; bad_n=$((bad_n+1)); }
+    done < <(python3 -c 'import json,sys
+for p,v in sorted(json.load(open(sys.argv[1]))["files"].items()): print("%s\t%s" % (p,v["sha256"]))' "$STATE/tools-manifest.json")
+    [ $bad_n = 0 ] && ok "$(loc "every tool matches the manifest")" || exit 1 ;;
+  *) sed -n 2,10p "$0"; exit 2 ;;
+esac

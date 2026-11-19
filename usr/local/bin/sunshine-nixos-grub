@@ -1,0 +1,11 @@
+#!/bin/sh
+# Called by the pacman hook after a system upgrade: if NixOS is installed on another disk and GRUB does not list it
+# yet, regenerate grub.cfg (etc/grub.d/42_nixos adds the entry).  Usage: sunshine-nixos-grub [--force]
+cfg=/boot/grub/grub.cfg
+[ -f "$cfg" ] || exit 0
+[ "$(id -u)" = 0 ] || { echo "run as root" >&2; exit 1; }
+want=$(/etc/grub.d/42_nixos 2>/dev/null)
+if [ -z "$want" ]; then [ "$1" = --force ] && echo "no NixOS found"; exit 0; fi
+if grep -q 'NixOS (auto-detected' "$cfg" && [ "$1" != --force ]; then exit 0; fi
+echo "NixOS detected: adding it to the GRUB menu"
+grub-mkconfig -o "$cfg"

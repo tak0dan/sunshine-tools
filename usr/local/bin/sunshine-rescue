@@ -1,0 +1,215 @@
+#!/usr/bin/env bash
+# Sunshine OS rescue: repair an installed Linux system from the live session (like Garuda's boot repair, but for the whole system).
+# It finds installed systems on all disks (ext4, btrfs with @ subvolumes, XFS, f2fs; LUKS is opened when you give the passphrase), mounts them the
+# way they are mounted when running (fstab, /boot, the EFI partition), and works inside them with arch-chroot.
+#
+#   sunshine-rescue                   menu
+#   sunshine-rescue list              installed systems found on this computer
+#   sunshine-rescue repair [DEV]      repair the system: file system, package database, kernel, initramfs, boot loader, fstab check, sunshine-doctor --fix
+#   sunshine-rescue bootloader [DEV]  only reinstall GRUB and rebuild its menu
+#   sunshine-rescue initramfs [DEV]   only rebuild the initramfs for every installed kernel
+#   sunshine-rescue passwd USER [DEV] set a new password for a user of the installed system
+#   sunshine-rescue fsck [DEV]        check the file system (while it is not mounted)
+#   sunshine-rescue chroot [DEV]      a shell inside the installed system
+#   sunshine-rescue run [DEV] -- CMD  run a command inside it
+#   sunshine-rescue mount [DEV]       mount it under /mnt/sunshine-rescue and leave it mounted
+#   sunshine-rescue umount            unmount everything this tool mounted
+# DEV is the root partition (for example /dev/sda2); without it the only installed system is used, or you are asked.
+# Environment for scripts: SUNSHINE_LUKS_PASS (passphrase of the encrypted disk), SUNSHINE_NEW_PASS (for passwd), SUNSHINE_RESCUE_FSCK=0 (skip the check).
+[ "$(id -u)" -eq 0 ] || exec sudo "$0" "$@"
+[ -r /usr/local/lib/sunshine/ui.sh ] && . /usr/local/lib/sunshine/ui.sh || { sec() { echo "* $*"; }; ok() { echo "+ $*"; }; bad() { echo "x $*"; }; loc() { printf '%s' "$*"; }; t() { printf '%s' "${2:-$1}"; }; Y=; G=; R=; B=; N=; }
+M=${SUNSHINE_RESCUE_MNT:-/mnt/sunshine-rescue}
+STATE=/run/sunshine-rescue; mkdir -p "$STATE"
+LOG=/tmp/sunshine-rescue.log
+die() { bad "$*"; exit 1; }
+need() { command -v "$1" >/dev/null || die "$(loc "missing tool"): $1"; }
+
+# ---------------------------------------------------------------- finding systems
+# One line per installed system: DEVICE[:subvolume] <TAB> FSTYPE <TAB> PRETTY NAME
+open_luks() {   # open every LUKS container (asks for the passphrase in a terminal, or uses SUNSHINE_LUKS_PASS)
+  local d name
+  for d in $(lsblk -rpno NAME,FSTYPE | awk '$2=="crypto_LUKS"{print $1}'); do
+    name=sunshine-luks-$(basename "$d")
+    if [ ! -e "/dev/mapper/$name" ]; then
+      if [ -n "${SUNSHINE_LUKS_PASS:-}" ]; then printf %s "$SUNSHINE_LUKS_PASS" | cryptsetup open "$d" "$name" - 2>/dev/null || { bad "$d: $(loc "could not be opened (wrong passphrase?)")" >&2; continue; }
+      elif [ -t 0 ]; then echo "$d $(loc "is encrypted") ..." >&2; cryptsetup open "$d" "$name" </dev/tty >&2 || continue
+      else continue; fi
+    fi
+    echo "/dev/mapper/$name"
+  done
+}
+scan() {
+  local tmp dev fs sub; tmp=$(mktemp -d)
+  open_luks >/dev/null
+  for dev in $(lsblk -rpno NAME,FSTYPE | awk '$2 ~ /^(ext4|ext3|btrfs|xfs|f2fs)$/{print $1}'); do
+    fs=$(lsblk -rno FSTYPE "$dev" | head -1)
+    case "$(findmnt -rno TARGET -S "$dev" 2>/dev/null | head -1)" in /run/archiso*|/) continue;; esac
+    mount -o ro,noload "$dev" "$tmp" 2>/dev/null || mount -o ro "$dev" "$tmp" 2>/dev/null || continue
+    if [ -f "$tmp/etc/os-release" ] && [ -f "$tmp/etc/fstab" ]; then
+      printf '%s\t%s\t%s\n' "$dev" "$fs" "$(. "$tmp/etc/os-release"; echo "${PRETTY_NAME:-Linux}")"
+    elif [ "$fs" = btrfs ]; then
+      for sub in @ root rootfs; do
+        if [ -f "$tmp/$sub/etc/os-release" ]; then
+          printf '%s\t%s\t%s\n' "$dev:$sub" "$fs" "$(. "$tmp/$sub/etc/os-release"; echo "${PRETTY_NAME:-Linux}")"; break
+        fi
+      done
+    fi
+    umount "$tmp" 2>/dev/null
+  done
+  rmdir "$tmp" 2>/dev/null
+}
+pick() {   # the system to work on: named, the only one, or asked for
+  local want=${1:-} list n i
+  list=$(scan)
+  [ -n "$list" ] || die "$(loc "No installed Linux system was found. If the disk is encrypted, run this in a terminal or set SUNSHINE_LUKS_PASS.")"
+  if [ -n "$want" ]; then
+    printf '%s\n' "$list" | awk -F'\t' -v w="$want" '$1==w || index($1,w":")==1 {print; exit}' | grep . && return 0
+    die "$want: $(loc "is not an installed system")"
+  fi
+  n=$(printf '%s\n' "$list" | wc -l)
+  [ "$n" = 1 ] && { printf '%s\n' "$list"; return 0; }
+  [ -t 0 ] || die "$(loc "Several systems found; name one: sunshine-rescue repair /dev/...")"
+  printf '%s\n' "$list" | nl -w2 -s'  ' >&2
+  read -rp "$(loc "Which one? number: ")" i </dev/tty
+  printf '%s\n' "$list" | sed -n "${i}p" | grep .
+}
+
+# ---------------------------------------------------------------- mounting
+is_mounted() { mountpoint -q "$M"; }
+do_umount() {
+  umount -R "$M" 2>/dev/null || umount -Rl "$M" 2>/dev/null
+  rm -f "$STATE/system"
+  local m; for m in /dev/mapper/sunshine-luks-*; do [ -e "$m" ] && cryptsetup close "$(basename "$m")" 2>/dev/null; done; true
+}
+do_mount() {     # do_mount "dev[:subvol]<TAB>fs<TAB>name"
+  local line=$1 dev sub fs
+  dev=$(printf '%s' "$line" | cut -f1); fs=$(printf '%s' "$line" | cut -f2); sub=
+  case "$dev" in *:*) sub=${dev#*:}; dev=${dev%%:*};; esac
+  is_mounted && do_umount
+  mkdir -p "$M"
+  if [ "$fs" = btrfs ]; then mount -o "subvol=${sub:-@}" "$dev" "$M" 2>>"$LOG" || mount "$dev" "$M" 2>>"$LOG" || die "$(loc "could not mount") $dev"
+  else mount "$dev" "$M" 2>>"$LOG" || die "$(loc "could not mount") $dev"; fi
+  # the other file systems of the installed system, as its own fstab says: /boot, the EFI partition, /home, /var ...
+  awk '$1!~/^#/ && NF>=4 && $2!="/" && $2!="none" && $3!="swap" && $3!~/^(nfs|cifs|tmpfs|proc|sysfs|devpts)/ && $4!~/noauto|x-systemd.automount/ {print $1, $2, $3, $4}' "$M/etc/fstab" | while read -r src mp type opts; do
+    case "$src" in UUID=*|LABEL=*|PARTUUID=*|PARTLABEL=*|/dev/*) ;; *) continue;; esac
+    mkdir -p "$M$mp"; mountpoint -q "$M$mp" || mount -t "$type" -o "$opts" "$src" "$M$mp" 2>>"$LOG" || mount "$src" "$M$mp" 2>>"$LOG"
+  done
+  echo "$line" > "$STATE/system"
+  ok "$(loc "mounted at") $M ($(printf '%s' "$line" | cut -f3))"
+}
+inchroot() { arch-chroot "$M" "$@"; }
+
+# ---------------------------------------------------------------- repairs (each prints what really happened)
+fails=0
+fail() { fails=$((fails+1)); bad "$*"; }
+step_pacman() {
+  sec "Package database"
+  rm -f "$M/var/lib/pacman/db.lck"
+  if inchroot pacman -Dk >/dev/null 2>&1; then ok "$(loc "package database is consistent")"; else fail "$(loc "the package database is damaged")"; fi
+  if [ -z "$(ls -A "$M/etc/pacman.d/gnupg" 2>/dev/null)" ]; then
+    inchroot bash -c 'pacman-key --init && pacman-key --populate' >>"$LOG" 2>&1 && ok "$(loc "keyring recreated")" || fail "$(loc "keyring could not be recreated")"
+  fi
+  if [ -x "$M/usr/local/bin/sunshine-repo" ]; then inchroot /usr/local/bin/sunshine-repo ensure --quiet >>"$LOG" 2>&1; fi
+}
+step_kernel() {
+  sec "Kernel and initramfs"
+  local k kv base any=0
+  for k in "$M"/usr/lib/modules/*/; do
+    [ -d "$k" ] || continue; any=1
+    base=linux; [ -f "$k/pkgbase" ] && base=$(cat "$k/pkgbase")
+    [ -f "$M/boot/vmlinuz-$base" ] || { [ -f "$k/vmlinuz" ] && cp --sparse=never "$k/vmlinuz" "$M/boot/vmlinuz-$base" && chmod 644 "$M/boot/vmlinuz-$base" && ok "vmlinuz-$base $(loc "restored")"; }
+  done
+  if [ $any = 0 ]; then
+    echo "$(loc "No kernel is installed in that system: installing linux")"
+    if inchroot pacman -S --noconfirm --needed linux linux-firmware >>"$LOG" 2>&1; then ok "$(loc "kernel installed")"; else fail "$(loc "the kernel could not be installed (no network?)")"; return; fi
+  fi
+  if inchroot mkinitcpio -P >>"$LOG" 2>&1; then ok "$(loc "initramfs rebuilt for every kernel")"; else fail "$(loc "mkinitcpio failed; see") $LOG"; tail -4 "$LOG"; fi
+}
+step_fstab() {
+  sec "fstab"
+  local n=0 src mp id
+  while read -r src mp; do
+    case "$src" in
+      UUID=*) id=${src#UUID=}; blkid -U "$id" >/dev/null 2>&1 || { bad "fstab: $mp: $(loc "missing UUID") $id"; n=$((n+1)); };;
+      LABEL=*) blkid -L "${src#LABEL=}" >/dev/null 2>&1 || { bad "fstab: $mp: $(loc "missing label") ${src#LABEL=}"; n=$((n+1)); };;
+    esac
+  done < <(awk '$1!~/^#/ && NF>=3 && $2!="none" && $3!="swap" {print $1, $2}' "$M/etc/fstab")
+  [ $n = 0 ] && ok "$(loc "every fstab entry points to an existing partition")" || fail "$n $(loc "fstab entries do not match the partitions: fix with: sunshine-rescue chroot, then nano /etc/fstab")"
+}
+efi_dir() { local t; for t in /boot/efi /boot /efi; do [ "$(findmnt -rno FSTYPE "$M$t" 2>/dev/null | head -1)" = vfat ] && { echo "$t"; return; }; done; }
+step_boot() {
+  sec "Boot loader"
+  local efi disk src
+  if [ -d /sys/firmware/efi ]; then
+    efi=$(efi_dir)
+    [ -n "$efi" ] || { fail "$(loc "the EFI partition of the installed system is not mounted (is it in its fstab?)")"; return; }
+    inchroot grub-install --target=x86_64-efi --efi-directory="$efi" --bootloader-id=SunshineOS --recheck >"$LOG.grub" 2>&1 || echo "$(loc "NVRAM entry could not be written (continuing with the fallback path)")"
+    if inchroot grub-install --target=x86_64-efi --efi-directory="$efi" --removable --recheck >>"$LOG.grub" 2>&1; then ok "GRUB (UEFI) $(loc "installed on") $efi"; else fail "grub-install: $(tail -2 "$LOG.grub" | tr '\n' ' ')"; return; fi
+  else
+    src=$(findmnt -no SOURCE "$M" | sed 's/\[.*//')
+    disk=$(lsblk -rno PKNAME "$src" 2>/dev/null | head -1)
+    case "$src" in /dev/mapper/sunshine-luks-*) disk=$(lsblk -rno PKNAME "/dev/${src##*sunshine-luks-}" 2>/dev/null | head -1);; esac
+    [ -n "$disk" ] || { fail "$(loc "cannot find the boot disk")"; return; }
+    if inchroot grub-install --target=i386-pc --recheck "/dev/$disk" >"$LOG.grub" 2>&1; then ok "GRUB (BIOS) $(loc "installed on") /dev/$disk"; else fail "grub-install: $(tail -2 "$LOG.grub" | tr '\n' ' ')"; return; fi
+  fi
+  if inchroot grub-mkconfig -o /boot/grub/grub.cfg >"$LOG.grub" 2>&1 && grep -q menuentry "$M/boot/grub/grub.cfg"; then ok "$(loc "boot menu rebuilt")"; else fail "grub-mkconfig: $(tail -2 "$LOG.grub" | tr '\n' ' ')"; fi
+}
+step_doctor() {
+  sec "Sunshine doctor"
+  if [ -x "$M/usr/local/bin/sunshine-doctor" ] || [ -x "$M/usr/bin/sunshine-doctor" ]; then inchroot sunshine-doctor --fix 2>&1 | sed 's/^/  /' | tail -40
+  else echo "$(loc "sunshine-doctor is not installed in that system")"; fi
+}
+do_fsck() {
+  local line=$1 dev fs rc
+  dev=$(printf '%s' "$line" | cut -f1); dev=${dev%%:*}; fs=$(printf '%s' "$line" | cut -f2)
+  is_mounted && do_umount
+  sec "File system check ($fs)"
+  case "$fs" in
+    ext2|ext3|ext4) e2fsck -fy "$dev" >>"$LOG" 2>&1; rc=$?; [ $rc -le 1 ] && ok "$(loc "file system is clean or was repaired")" || fail "e2fsck: exit $rc (see $LOG)";;
+    btrfs) btrfs check --readonly "$dev" >>"$LOG" 2>&1 && ok "$(loc "btrfs is consistent")" || fail "$(loc "btrfs reports problems; see") $LOG ($(loc "btrfs check --repair is a last resort: copy your data first"))";;
+    xfs) xfs_repair "$dev" >>"$LOG" 2>&1 && ok "xfs $(loc "is consistent")" || fail "xfs_repair: see $LOG";;
+    f2fs) fsck.f2fs -f "$dev" >>"$LOG" 2>&1 && ok "f2fs $(loc "is consistent")" || fail "fsck.f2fs: see $LOG";;
+    *) echo "$(loc "no checker for") $fs";;
+  esac
+}
+do_passwd() {
+  local user=$1
+  inchroot id "$user" >/dev/null 2>&1 || die "$user: $(loc "no such user in the installed system")"
+  if [ -n "${SUNSHINE_NEW_PASS:-}" ]; then printf '%s:%s\n' "$user" "$SUNSHINE_NEW_PASS" | inchroot chpasswd && ok "$(loc "password changed for") $user" || die "chpasswd failed"
+  else inchroot passwd "$user" || die "passwd failed"; fi
+  inchroot faillock --user "$user" --reset >/dev/null 2>&1; true
+}
+
+need arch-chroot; need lsblk
+cmd=${1:-menu}; shift 2>/dev/null || true
+case "$cmd" in
+  list) l=$(scan); [ -n "$l" ] && printf '%s\n' "$l" | awk -F'\t' '{printf "%-24s %-6s %s\n",$1,$2,$3}' || echo "$(loc "No installed Linux system was found.")" ;;
+  umount) do_umount; ok "$(loc "unmounted")" ;;
+  mount) line=$(pick "${1:-}") || exit 1; do_mount "$line" ;;
+  chroot) line=$(pick "${1:-}") || exit 1; do_mount "$line"; echo "$(loc "You are inside the installed system. Type exit to leave.")"; inchroot /bin/bash; do_umount ;;
+  run) dev=; [ "${1:-}" != -- ] && [ -n "${1:-}" ] && { dev=$1; shift; }; [ "${1:-}" = -- ] && shift; line=$(pick "$dev") || exit 1; do_mount "$line"; inchroot "$@"; rc=$?; do_umount; exit $rc ;;
+  fsck) line=$(pick "${1:-}") || exit 1; do_fsck "$line"; [ $fails = 0 ] ;;
+  passwd) user=${1:?user name}; line=$(pick "${2:-}") || exit 1; do_mount "$line"; do_passwd "$user"; do_umount ;;
+  initramfs) line=$(pick "${1:-}") || exit 1; do_mount "$line"; step_kernel; do_umount; [ $fails = 0 ] ;;
+  bootloader) line=$(pick "${1:-}") || exit 1; do_mount "$line"; step_boot; do_umount; [ $fails = 0 ] ;;
+  repair)
+    line=$(pick "${1:-}") || exit 1
+    [ "${SUNSHINE_RESCUE_FSCK:-1}" = 1 ] && do_fsck "$line"
+    do_mount "$line"
+    step_pacman; step_kernel; step_fstab; step_boot; step_doctor
+    do_umount
+    echo
+    if [ $fails = 0 ]; then printf '%s\n' "${G}$(loc "Repair finished. Restart and remove the live medium.")${N}"; exit 0
+    else bad "$fails $(loc "step(s) failed; the log is") $LOG"; exit 1; fi ;;
+  menu)
+    [ -t 0 ] || { sed -n 2,19p "$0"; exit 0; }
+    echo "${Y}${B}Sunshine OS rescue${N}"; echo
+    list=$(scan); [ -n "$list" ] || die "$(loc "No installed Linux system was found.")"
+    printf '%s\n' "$list" | awk -F'\t' '{printf "  found: %-24s %-6s %s\n",$1,$2,$3}'
+    echo; echo "  1) $(loc "Repair everything (recommended)")"; echo "  2) $(loc "Reinstall the boot loader")"; echo "  3) $(loc "Rebuild the initramfs")"
+    echo "  4) $(loc "Reset a user password")"; echo "  5) $(loc "Check the file system")"; echo "  6) $(loc "Open a shell inside the installed system")"; echo "  q) $(loc "Quit")"
+    read -rp "> " c </dev/tty
+    case "$c" in 1) exec "$0" repair;; 2) exec "$0" bootloader;; 3) exec "$0" initramfs;; 5) exec "$0" fsck;; 6) exec "$0" chroot;;
+      4) read -rp "$(loc "User name: ")" u </dev/tty; exec "$0" passwd "$u";; *) exit 0;; esac ;;
+  *) sed -n 2,19p "$0"; exit 2 ;;
+esac

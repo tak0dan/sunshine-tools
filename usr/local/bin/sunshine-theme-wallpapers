@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# The stock Plasma themes (Breeze, Breeze Dark, Breeze Twilight) come with the "Next" wallpaper. Sunshine OS ships them preloaded, so they get the
+# Sunshine flower wallpaper instead: Plasma's own look-and-feel "defaults" files are patched. A package update puts the originals back, so the
+# pacman hook 96-sunshine-wallpapers.hook runs this again afterwards.
+for d in /usr/share/plasma/look-and-feel/org.kde.breeze*.desktop/contents/defaults; do
+  [ -f "$d" ] || continue
+  grep -q '^Image=Next$' "$d" && sed -i 's/^Image=Next$/Image=Sunshine/' "$d"
+  grep -q '^\[Wallpaper\]' "$d" || printf '\n[Wallpaper]\nImage=Sunshine\n' >> "$d"
+done
+exit 0

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Installer step (runs in the new system): register the shipped sunshine-base package with pacman, so tool updates arrive through normal
+# updates. The files are already in place: --overwrite takes ownership. Lives in a script because Calamares substitutes $variables
+# in the YAML of a shellprocess command (a `for p in ...` loop there fails with "Missing variables: p,p"). Never fails the installation.
+set -u
+for p in /usr/share/sunshine/pkgs/sunshine-base-*.pkg.tar.zst; do
+  [ -f "$p" ] || continue
+  pacman -U --noconfirm --overwrite '*' "$p" || echo "sunshine-register-base: could not register $p (continuing)" >&2
+done
+exit 0

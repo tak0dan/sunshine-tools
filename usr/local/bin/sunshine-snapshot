@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Restore points in plain words. Works on every file system: btrfs uses Snapper, everything else uses Timeshift (rsync).
+#   sunshine-snapshot status            which backend, is it set up, how many restore points
+#   sunshine-snapshot list              show restore points
+#   sunshine-snapshot create ["text"]   make one now
+#   sunshine-snapshot delete ID         remove one (Snapper: number, Timeshift: name from the list)
+#   sunshine-snapshot changes A B       files changed between two points (btrfs only)
+#   sunshine-snapshot restore           open the graphical restore tool
+# On btrfs: to go back after something broke, pick "Sunshine OS snapshots" in the boot menu, boot it, then restore from Btrfs Assistant.
+# On other file systems: open "Restore points" (Timeshift) in the running system, or from the live USB: sunshine-snapshot restore.
+# Internal: pre-hook (pacman, before an update), timeline (daily timer).
+cmd=${1:-list}; shift || true
+CONF=/etc/sunshine/snapshots.conf; PRE_UPDATE=yes; KEEP_PRE=3; [ -f "$CONF" ] && . "$CONF"
+fs=$(findmnt -no FSTYPE / 2>/dev/null)
+if [ "$fs" = btrfs ]; then backend=snapper; else backend=timeshift; fi
+SU() { if [ "$(id -u)" -eq 0 ]; then "$@"; else sudo "$@"; fi; }
+S() { SU snapper -c root "$@"; }
+T() { SU timeshift --scripted "$@"; }
+need_snapper() { [ -e /etc/snapper/configs/root ] || { echo "Restore points are not set up. Run: sudo sunshine-doctor --fix"; exit 1; }; }
+need_timeshift() { command -v timeshift >/dev/null || { echo "Timeshift is not installed: sudo pacman -S timeshift"; exit 1; }
+  [ -e /etc/timeshift/timeshift.json ] || { echo "Restore points are not set up. Run: sudo sunshine-doctor --fix"; exit 1; }; }
+ts_names() { timeshift --list --scripted 2>/dev/null | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}'; }
+case "$cmd" in
+  backend) echo "$backend ($fs)" ;;
+  status)
+    echo "File system: $fs  ->  $backend"
+    if [ $backend = snapper ]; then [ -e /etc/snapper/configs/root ] && echo "Set up: yes ($(snapper -c root list --columns number 2>/dev/null | grep -c '^ *[1-9]') restore points)" || echo "Set up: no"
+    else [ -e /etc/timeshift/timeshift.json ] && echo "Set up: yes ($(ts_names | wc -l) restore points; daily timer: $(systemctl is-enabled sunshine-timeshift.timer 2>/dev/null || echo off))" || echo "Set up: no"; fi ;;
+  list) if [ $backend = snapper ]; then need_snapper; S list; else need_timeshift; T --list; fi ;;
+  create)
+    if [ $backend = snapper ]; then need_snapper; S create -c number -d "${*:-Manual restore point}" && echo "Restore point created."
+    else need_timeshift; T --create --comments "${*:-Manual restore point}" --tags O && echo "Restore point created."; fi ;;
+  delete) [ -n "${1:-}" ] || { echo "usage: sunshine-snapshot delete ID"; exit 2; }
+    if [ $backend = snapper ]; then need_snapper; S delete "$1" && echo "Deleted."; else need_timeshift; T --delete --snapshot "$1" && echo "Deleted."; fi ;;
+  changes) [ $backend = snapper ] || { echo "Comparing restore points needs btrfs."; exit 1; }
+    need_snapper; [ $# -eq 2 ] || { echo "usage: sunshine-snapshot changes A B"; exit 2; }; S status "$1..$2" ;;
+  restore) if [ $backend = snapper ]; then exec btrfs-assistant-launcher; else exec pkexec timeshift-launcher; fi ;;
+  pre-hook)   # called by pacman before every transaction; never blocks an update
+    [ $backend = timeshift ] && [ "${PRE_UPDATE:-yes}" = yes ] && [ -e /etc/timeshift/timeshift.json ] && command -v timeshift >/dev/null || exit 0
+    [ -e /run/archiso ] && exit 0
+    echo "Making a restore point before the update (the first one can take a few minutes)..."
+    timeshift --create --scripted --comments "Before update (pacman)" --tags O >/dev/null 2>&1 || echo "(restore point could not be made; continuing with the update)"
+    # keep the newest KEEP_PRE of the "before update" points
+    old=$(timeshift --list --scripted 2>/dev/null | grep 'Before update (pacman)' | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}' | sort | head -n -"${KEEP_PRE:-3}")
+    for n in $old; do timeshift --delete --snapshot "$n" --scripted >/dev/null 2>&1; done
+    exit 0 ;;
+  timeline)   # daily timer (Timeshift systems)
+    command -v timeshift >/dev/null && [ -e /etc/timeshift/timeshift.json ] || exit 0
+    c="Daily restore point"; [ -z "$(ts_names)" ] && c="Fresh install"
+    timeshift --create --scripted --comments "$c" --tags D ;;
+  *) sed -n 2,12p "$0"; exit 2 ;;
+esac

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Installer step (runs in the live system): records where the system was installed in <root>/etc/sunshine/install-location.
+# Only used to pick the default language of the Sunshine tools (Ukrainian for Toulouse, France). The time zone Europe/Paris is checked
+# against the city the IP address resolves to, once, with a short timeout; nothing else is sent or stored.
+ROOT=${1:-/tmp/calamares-root}
+zone=$(readlink "$ROOT/etc/localtime" 2>/dev/null | sed 's#.*/zoneinfo/##')
+city=""
+if [ "$zone" = Europe/Paris ]; then city=$(curl -fsS --max-time 6 https://ipapi.co/city/ 2>/dev/null | head -c 60 | tr -cd '[:alnum:] ._-'); fi
+mkdir -p "$ROOT/etc/sunshine"
+printf 'zone=%s\ncity=%s\n' "${zone:-unknown}" "$city" > "$ROOT/etc/sunshine/install-location"
+exit 0

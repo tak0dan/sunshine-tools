@@ -1,0 +1,30 @@
+#!/bin/bash
+# Sunshine top bar (after Garuda Dr460nized, plus live graphs): global menu on the left, the clock exactly in the middle,
+# live graphs (network, disk, CPU, GPU) and the user switcher on the right. Run inside a Plasma session; `sunshine-topbar remove` takes it away.
+Q=$(command -v qdbus6 || command -v qdbus) || exit 1
+if [ "${1:-}" = remove ]; then
+  "$Q" org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript 'for (var p of panels()) if (p.location=="top") p.remove();' >/dev/null; exit 0
+fi
+# The applets are not always known to plasmashell right after login. Look first: a bar that already has its widgets is left alone (creating
+# and removing panels in quick succession can crash plasmashell). Otherwise create it, wait, check again; give up after four tries.
+count() {
+  "$Q" org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.dumpCurrentLayoutJS 2>/dev/null | python3 -c 'import json,sys
+t=sys.stdin.read(); d=json.loads(t[t.index("{"):t.rindex("}")+1])
+print(sum(len(p.get("applets",[])) for p in d.get("panels",[]) if p.get("location")=="top"))' 2>/dev/null
+}
+# Three panels side by side on the top edge: a bar built from one list of widgets puts the clock off-centre whenever the left and the right side
+# differ in width (the global menu changes with every application). Left: global menu. Centre: clock. Right: graphs and the user switcher.
+for try in 1 2 3 4; do
+  [ "${1:-}" = --force ] && [ "$try" = 1 ] || { n=$(count); [ "${n:-0}" -ge 3 ] 2>/dev/null && exit 0; }
+  "$Q" org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript '
+for (var q of panels()) if (q.location=="top") q.remove();
+function mk(al, ws) { var t = new Panel; t.location = "top"; t.floating = false; t.lengthMode = "fit"; t.alignment = al; t.height = Math.round(gridUnit * 1.9); t.hiding = "none"; for (var w of ws) t.addWidget(w); return t }
+mk("left", ["org.kde.plasma.appmenu"]);
+mk("center", ["org.kde.plasma.digitalclock"]);
+mk("right", ["com.sunshineos.graphs", "org.kde.plasma.userswitcher"]);
+' >/dev/null 2>&1
+  sleep 10
+done
+n=$(count); [ "${n:-0}" -ge 3 ] 2>/dev/null && exit 0
+echo "sunshine-topbar: the top bar could not be filled (plasmashell not ready?)" >&2
+exit 1

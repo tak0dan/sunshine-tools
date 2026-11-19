@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Finishes app installs from the Sunshine catalogue. Choosing an app (installer, store or `sudo pacman -S sunshine-app-<id>`) installs its official
+# packages at once and queues the rest here: AUR packages (installed with the AUR helper as your user; third-party binaries are not hosted by us),
+# setup scripts (groups, services, firewall ...) and web-app launchers. Anything that needs the internet stays queued until it is online.
+#   sunshine-apps pending            what is queued
+#   sunshine-apps apply              do the queued work now (root; used at first boot, by a pacman hook, by sunshine-update)
+#   sunshine-apps install ID...      install catalogue apps (pacman -S sunshine-app-ID, then apply)
+#   sunshine-apps first-update       install the apps marked "first update" in the catalogue (once)
+# Log: /var/log/sunshine/apps.log
+PEND=/var/lib/sunshine/pending; META=/usr/share/sunshine/apps.d; SETUP=/usr/share/sunshine/apps-setup; LOG=/var/log/sunshine/apps.log
+cmd=${1:-pending}; shift || true
+[ "$cmd" = pending ] || [ "$(id -u)" -eq 0 ] || exec sudo "$0" "$cmd" "$@"
+mkdir -p "$PEND" "$(dirname "$LOG")" 2>/dev/null
+log() { echo "[$(date '+%F %T')] $*" >> "$LOG"; echo "$*"; }
+target_user() {   # the person this system is for: the user who asked, else the first normal account
+  [ -n "${APPS_USER:-}" ] && { echo "$APPS_USER"; return; }
+  [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != root ] && { echo "$SUDO_USER"; return; }
+  [ -n "${PKEXEC_UID:-}" ] && { getent passwd "$PKEXEC_UID" | cut -d: -f1; return; }
+  awk -F: '$3>=1000 && $3<60000 && $7!~/nologin|false/ {print $1; exit}' /etc/passwd
+}
+online() { curl -fsI --max-time 8 https://archlinux.org >/dev/null 2>&1; }
+field() { python3 -c "import json,sys;d=json.load(open('$META/$1.json'));v=d.get('$2');print(' '.join(v) if isinstance(v,list) else (v or ''))" 2>/dev/null; }
+aur_helper() { for h in paru yay; do command -v $h >/dev/null && { echo $h; return; }; done; }
+case "$cmd" in
+  pending) ls "$PEND" 2>/dev/null | sed 's/^/  queued: /'; [ -n "$(ls "$PEND" 2>/dev/null)" ] || echo "nothing queued" ;;
+  apply)
+    u=$(target_user); [ -n "$u" ] || { log "no user account yet: nothing applied"; exit 0; }; home=$(getent passwd "$u" | cut -d: -f6)
+    for f in "$PEND"/*; do
+      [ -e "$f" ] || break; id=$(basename "$f"); [ -f "$META/$id.json" ] || { rm -f "$f"; continue; }
+      ok=1; aur=$(field $id aur); setup=$(field $id setup); wname=$(python3 -c "import json;d=json.load(open('$META/$id.json'));w=d.get('webapp') or {};print(w.get('name',''))"); wurl=$(python3 -c "import json;d=json.load(open('$META/$id.json'));w=d.get('webapp') or {};print(w.get('url',''))")
+      if [ -n "$aur" ]; then
+        h=$(aur_helper)
+        if [ -z "$h" ]; then log "$id: no AUR helper installed (paru/yay): kept in the queue"; ok=0
+        elif ! online; then log "$id: offline: AUR packages wait for the internet"; ok=0
+        else log "$id: installing from the AUR: $aur"; sudo -u "$u" $h -S --needed --noconfirm $aur >> "$LOG" 2>&1 || { log "$id: AUR install failed (see $LOG)"; ok=0; }; fi
+      fi
+      if [ $ok = 1 ] && [ -n "$wurl" ]; then sudo -u "$u" env HOME="$home" sunshine-webapp add "$id" "$wname" "$wurl" >> "$LOG" 2>&1; fi
+      if [ $ok = 1 ] && [ -n "$setup" ]; then
+        for sname in $setup; do [ -x "$SETUP/$sname.sh" ] && { log "$id: setup $sname"; "$SETUP/$sname.sh" "$id" "$u" "$home" >> "$LOG" 2>&1 || { log "$id: setup $sname failed (see $LOG)"; ok=0; }; }; done
+      fi
+      [ $ok = 1 ] && { rm -f "$f"; log "$id: done"; }
+    done ;;
+  install)
+    [ $# -gt 0 ] || { echo "usage: sunshine-apps install ID..."; exit 2; }
+    pkgs=(); for i in "$@"; do pkgs+=("sunshine-app-$i"); done
+    # The app packages depend on sunshine-base. On a system where its files are in place but pacman does not own them (the live session,
+    # or an install where the registration step could not run) installing it would stop with "exists in filesystem": take ownership first.
+    if ! pacman -Qq sunshine-base >/dev/null 2>&1; then
+      log "registering sunshine-base with pacman (its files are already in place)"
+      pacman -S --noconfirm --needed --overwrite '*' sunshine-base >> "$LOG" 2>&1 || log "could not register sunshine-base (see $LOG)"
+    fi
+    # Steam, Wine and friends need the 32-bit repository
+    if ! grep -q '^\[multilib\]' /etc/pacman.conf; then
+      sed -i '/^#\[multilib\]/,/^#Include/ s/^#//' /etc/pacman.conf
+      grep -q '^\[multilib\]' /etc/pacman.conf || printf '\n[multilib]\nInclude = /etc/pacman.d/mirrorlist\n' >> /etc/pacman.conf
+      pacman -Sy --noconfirm >/dev/null 2>&1
+    fi
+    pacman -S --needed --noconfirm "${pkgs[@]}" && exec "$0" apply ;;
+  first-update)
+    # never in the live session: LibreOffice and the rest would fill the 1 GiB RAM overlay and vanish at the next boot
+    [ -d /run/archiso ] && { echo "live session: the first-update apps are installed on the installed system"; exit 0; }
+    [ -e /var/lib/sunshine/first-update-done ] && { echo "first-update apps were already handled"; exit 0; }
+    ids=$(python3 - <<'PY'
+import tomllib,pathlib
+p=pathlib.Path("/usr/share/sunshine/catalogue.toml")
+print(" ".join(a["id"] for a in tomllib.loads(p.read_text())["app"] if a.get("first_update")) if p.exists() else "")
+PY
+)
+    [ -n "$ids" ] || { echo "no catalogue found"; exit 0; }
+    online || { log "first update apps ($ids) wait for the internet"; exit 0; }
+    "$0" install $ids && touch /var/lib/sunshine/first-update-done ;;
+  *) sed -n 2,12p "$0"; exit 2 ;;
+esac
