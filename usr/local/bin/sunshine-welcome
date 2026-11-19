@@ -85,6 +85,8 @@ class Welcome(QWidget):
             b = self.button(tr("💿  Install Sunshine OS\nPut Sunshine OS on this computer"), self.install)
             b.setObjectName("primary")
             outer.addWidget(b)
+        if LIVE:
+            items.append((tr("🛠  Repair an installed system\nFind it, fix boot, packages, kernel"), lambda: terminal("sunshine-rescue; echo; read -rp 'Press Enter to close.'", "Rescue")))
         items += [
             (tr("🛍  Get apps\nBrowse and install programs"), lambda: run(["sunshine-store"])),
             (tr("🔄  Update everything\nSystem, apps and extras"), self.update),

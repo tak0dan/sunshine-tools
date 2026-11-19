@@ -27,7 +27,14 @@ add awesome    "awesome vicious alacritty rofi"                                 
 # shellcheck disable=SC2034 # fallback colour names mirror ui.sh even when one is unused here
 [ -r /usr/local/lib/sunshine/ui.sh ] && . /usr/local/lib/sunshine/ui.sh || { sec() { echo "* $*"; }; ok() { echo "+ $*"; }; bad() { echo "x $*"; }; loc() { printf '%s' "$*"; }; Y=; G=; R=; B=; N=; }
 names=(kde gnome xfce cinnamon mate budgie lxqt cosmic i3 sway hyprland niri openbox qtile bspwm awesome)
+SUN_W=/usr/share/sunshine/wayland-sessions; SUN_X=/usr/share/sunshine/xsessions     # the login screen only lists these folders (sddm.conf.d/20-sunshine-sessions.conf)
 have_session() { ls /usr/share/xsessions/"$1"*.desktop /usr/share/wayland-sessions/"$1"*.desktop >/dev/null 2>&1; }
+link_sessions() {   # make the installed session visible at the login screen
+  local f; mkdir -p "$SUN_W" "$SUN_X"
+  for f in /usr/share/wayland-sessions/"$1"*.desktop; do [ -f "$f" ] && ln -sf "$f" "$SUN_W/$(basename "$f")"; done
+  for f in /usr/share/xsessions/"$1"*.desktop; do [ -f "$f" ] && ln -sf "$f" "$SUN_X/$(basename "$f")"; done
+}
+unlink_sessions() { local f; for f in "$SUN_W"/"$1"*.desktop "$SUN_X"/"$1"*.desktop; do [ -L "$f" ] && rm -f "$f"; done; }
 REPO_LIST=$({ pacman -Slq; pacman -Sgq; } 2>/dev/null | sort -u)   # one call: every package of the enabled repositories
 avail() { local p; for p in ${PKG[$1]}; do grep -qx -- "$p" <<<"$REPO_LIST" || return 1; done; return 0; }
 expand() { local p; for p in ${PKG[$1]}; do if pacman -Sgq "$p" 2>/dev/null | grep -q .; then pacman -Sgq "$p"; else echo "$p"; fi; done; }   # package groups (xfce4, mate, lxqt, cosmic) to their members
@@ -49,17 +56,18 @@ case "${1:-list}" in
     sec "Installing $n"
     # GNOME's gdm and our login screen (sddm) must not fight: sddm stays, gdm is installed but not enabled
     pacman -S --noconfirm --needed ${PKG[$n]} || { bad "$(loc "installation failed")"; exit 1; }
-    if have_session "${SESSION[$n]}"; then ok "$n $(loc "installed: pick it at the login screen (the session menu)")"; else bad "$(loc "installed, but no session file appeared")"; exit 1; fi
+    if have_session "${SESSION[$n]}"; then link_sessions "${SESSION[$n]}"; ok "$n $(loc "installed: pick it at the login screen (the session menu)")"; else bad "$(loc "installed, but no session file appeared")"; exit 1; fi
     systemctl is-enabled sddm >/dev/null 2>&1 || echo "$(loc "No login screen is enabled: sudo systemctl enable sddm")" ;;
   remove)
     n=${2:-}; [ -n "${PKG[$n]:-}" ] || { bad "usage: sunshine-desktops remove NAME"; exit 2; }
     [ "$n" = kde ] && { bad "$(loc "Plasma is the default desktop and stays")"; exit 1; }
     # remove only what is not needed by other installed packages (pacman -Rns refuses to break dependencies)
     for p in $(expand "$n"); do pacman -Qq "$p" >/dev/null 2>&1 && pacman -Rns --noconfirm "$p" >/dev/null 2>&1; done
-    have_session "${SESSION[$n]}" && bad "$(loc "some of it is still needed by other packages")" || ok "$n $(loc "removed")" ;;
+    unlink_sessions "${SESSION[$n]}"
+    have_session "${SESSION[$n]}" && { link_sessions "${SESSION[$n]}"; bad "$(loc "some of it is still needed by other packages")"; } || ok "$n $(loc "removed")" ;;
   default)
     n=${2:-}; [ -n "${PKG[$n]:-}" ] || { bad "usage: sunshine-desktops default NAME"; exit 2; }
-    f=$(ls /usr/share/wayland-sessions/${SESSION[$n]}*.desktop /usr/share/xsessions/${SESSION[$n]}*.desktop 2>/dev/null | head -1)
+    f=$(ls "$SUN_W"/${SESSION[$n]}*.desktop "$SUN_X"/${SESSION[$n]}*.desktop /usr/share/wayland-sessions/${SESSION[$n]}*.desktop /usr/share/xsessions/${SESSION[$n]}*.desktop 2>/dev/null | head -1)
     [ -n "$f" ] || { bad "$n $(loc "is not installed")"; exit 1; }
     mkdir -p /var/lib/sddm; printf '[Last]\nSession=%s\n' "$f" > /var/lib/sddm/state.conf
     ok "$(loc "the login screen starts with") $n" ;;

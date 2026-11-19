@@ -53,6 +53,7 @@ case "$cmd" in
       case "$path" in *..*) skipped=$((skipped+1)); continue;; esac
       src=$T/x/$path
       [ "$(realpath -m "$src")" = "$src" ] || { echo "$(loc "refused (symbolic link in the path)"): $path"; skipped=$((skipped+1)); continue; }
+      case "$path" in usr/local/bin/*|usr/share/sunshine/migrations/*) mode=755;; esac     # tools must be runnable whatever mode the publisher saw
       case "${mode:-644}" in 644|755) ;; *) echo "$(loc "refused (unusual file mode)"): $path $mode"; skipped=$((skipped+1)); continue;; esac
       [ -f "$src" ] && [ ! -L "$src" ] || { echo "$(loc "missing in the archive"): $path"; skipped=$((skipped+1)); continue; }
       [ "$(sha256sum "$src" | cut -d' ' -f1)" = "$sum" ] || { echo "$(loc "checksum mismatch, refused"): $path"; skipped=$((skipped+1)); continue; }

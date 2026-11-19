@@ -167,6 +167,8 @@ step_kernel() {
     echo "$(loc "No kernel is installed in that system: installing linux")"
     if inchroot pacman -S --noconfirm --needed linux linux-firmware >>"$LOG" 2>&1; then ok "$(loc "kernel installed")"; else fail "$(loc "the kernel could not be installed (no network?)")"; return; fi
   fi
+  bf=$(df --output=avail -BM "$M/boot" 2>/dev/null | tail -1 | tr -dc 0-9)
+  if [ "${bf:-999}" -lt 60 ]; then fail "$(loc "/boot has only") ${bf} MB $(loc "free: an initramfs would be written half-way. Remove an old kernel (sunshine-kernel remove) or enlarge /boot first.")"; return; fi
   if inchroot mkinitcpio -P >>"$LOG" 2>&1; then ok "$(loc "initramfs rebuilt for every kernel")"; else fail "$(loc "mkinitcpio failed; see") $LOG"; tail -4 "$LOG"; fi
 }
 step_fstab() {
@@ -208,7 +210,7 @@ step_boot() {
     [ -n "$disk" ] || { fail "$(loc "cannot find the boot disk")"; return; }
     if inchroot grub-install --target=i386-pc --recheck "/dev/$disk" >"$LOG.grub" 2>&1; then ok "GRUB (BIOS) $(loc "installed on") /dev/$disk"; else fail "grub-install: $(tail -2 "$LOG.grub" | tr '\n' ' ')"; return; fi
   fi
-  if inchroot grub-mkconfig -o /boot/grub/grub.cfg >"$LOG.grub" 2>&1 && grep -q menuentry "$M/boot/grub/grub.cfg"; then ok "$(loc "boot menu rebuilt")"; else fail "grub-mkconfig: $(tail -2 "$LOG.grub" | tr '\n' ' ')"; fi
+  if inchroot grub-mkconfig -o /boot/grub/grub.cfg >"$LOG.grub" 2>&1 && grep -q menuentry "$M/boot/grub/grub.cfg" && { ! command -v grub-script-check >/dev/null || grub-script-check "$M/boot/grub/grub.cfg" >>"$LOG.grub" 2>&1; }; then ok "$(loc "boot menu rebuilt and checked")"; else fail "grub-mkconfig: $(tail -2 "$LOG.grub" | tr '\n' ' ')"; fi
 }
 step_doctor() {
   sec "Sunshine doctor"
@@ -277,7 +279,8 @@ case "$cmd" in
     [ "${SUNSHINE_RESCUE_FSCK:-1}" = 1 ] && do_fsck "$line"
     do_mount "$line"
     step_pacman; step_core; step_kernel; step_fstab; step_boot; step_doctor
-    do_umount
+    mkdir -p "$M/var/log/sunshine" && cp "$LOG" "$M/var/log/sunshine/rescue-$(date +%Y%m%d-%H%M%S).log" 2>/dev/null && echo "$(loc "log kept on the repaired system"): /var/log/sunshine/rescue-*.log"
+    sync; do_umount
     echo
     if [ $fails = 0 ]; then printf '%s\n' "${G}$(loc "Repair finished. Restart and remove the live medium.")${N}"; exit 0
     else bad "$fails $(loc "step(s) failed; the log is") $LOG"; exit 1; fi ;;

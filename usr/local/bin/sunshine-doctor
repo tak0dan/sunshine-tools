@@ -18,6 +18,9 @@ fx()   { fixed=$((fixed+1)); printf '  %s↺ fixed:%s %s\n' "$G" "$N" "$*"; }
 sec()  { [ "$Q" = 1 ] || printf '\n%s☀ %s%s\n' "$Y$B" "$(loc "$*")" "$N"; }
 [ "$Q" = 1 ] || printf '%sSunshine OS doctor%s  %s(%s)%s\n' "$Y$B" "$N" "$D" "$( [ $FIX = 1 ] && echo 'check + repair' || echo 'check only; add --fix to repair')" "$N"
 
+if [ $FIX = 1 ] && [ $LIVE = 0 ] && [ -z "${SUNSHINE_IN_RESCUE:-}" ] && [ "$(findmnt -no FSTYPE / 2>/dev/null)" = btrfs ] && command -v snapper >/dev/null && [ -e /etc/snapper/configs/root ]; then
+  snapper -c root create -d "before sunshine-doctor --fix" >/dev/null 2>&1 && printf '  %s\n' "$(loc "restore point made before repairing (undo from the boot menu or sunshine-snapshot)")"
+fi
 sec "Identity"
 if /usr/local/bin/sunshine-identity check --quiet; then ok "this is Sunshine OS ($(. /etc/os-release; echo "$PRETTY_NAME"))"
 else bad "system identity was changed (an update replaced os-release/issue)"
@@ -172,7 +175,8 @@ if [ $LIVE = 0 ]; then
   else ok "DNS configuration present"; fi
   if [ -f /boot/grub/grub.cfg ]; then
     case "$(grep -m1 vendor_id /proc/cpuinfo | awk '{print $3}')" in GenuineIntel) u=intel-ucode;; AuthenticAMD) u=amd-ucode;; *) u=;; esac
-    if [ -n "$u" ] && pacman -Qq "$u" >/dev/null 2>&1; then grep -q "$u" /boot/grub/grub.cfg && ok "microcode is in the boot menu" || { warn "$u is installed but the GRUB menu does not load it"; [ $FIX = 1 ] && grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1 && fx "boot menu rebuilt (microcode added)"; }; fi
+    if [ -n "$u" ] && pacman -Qq "$u" >/dev/null 2>&1 && grep -qE '^HOOKS=.*microcode' /etc/mkinitcpio.conf 2>/dev/null; then ok "microcode is built into the initramfs"
+    elif [ -n "$u" ] && pacman -Qq "$u" >/dev/null 2>&1; then grep -q "$u" /boot/grub/grub.cfg && ok "microcode is in the boot menu" || { warn "$u is installed but the GRUB menu does not load it"; [ $FIX = 1 ] && grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1 && fx "boot menu rebuilt (microcode added)"; }; fi
   fi
   # an encrypted root needs the encrypt hook in the initramfs, or the system cannot ask for the passphrase
   if grep -qE 'cryptdevice=|rd.luks' /proc/cmdline || [ "$(findmnt -no SOURCE / | cut -c1-12)" = /dev/mapper/ ]; then
@@ -213,6 +217,14 @@ if [ $LIVE = 0 ]; then
   for u in NetworkManager bluetooth cups sddm systemd-resolved systemd-timesyncd; do
     [ $RESCUE = 0 ] && systemctl is-failed --quiet "$u" 2>/dev/null && { warn "$u failed"; [ $FIX = 1 ] && systemctl reset-failed "$u" 2>/dev/null; [ $FIX = 1 ] && systemctl restart "$u" 2>/dev/null && fx "$u restarted"; }
   done
+fi
+
+if [ $LIVE = 0 ] && [ $RESCUE = 0 ]; then
+  if systemctl is-enabled --quiet NetworkManager 2>/dev/null && systemctl is-enabled --quiet systemd-networkd-wait-online.service 2>/dev/null; then
+    warn "systemd-networkd-wait-online is enabled next to NetworkManager: the boot waits up to 2 minutes for it"
+    [ $FIX = 1 ] && [ -x /usr/local/bin/sunshine-migrate ] && { /usr/local/bin/sunshine-migrate redo 0005-faster-boot >/dev/null 2>&1; /usr/local/bin/sunshine-migrate run >/dev/null 2>&1; fx "boot no longer waits for the network"; }
+  fi
+  bt=$(systemd-analyze 2>/dev/null | grep -oP '= \K.*' | head -1); [ -n "$bt" ] && echo "  boot time: $bt"
 fi
 
 sec "Restore points"

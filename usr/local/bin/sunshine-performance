@@ -105,7 +105,7 @@ status() {
 bench() {
   echo "${Y}${B}Sunshine OS $(loc "performance numbers")${N}"
   echo "  $(systemd-analyze 2>/dev/null | head -1)"
-  echo "  $(systemd-analyze blame 2>/dev/null | head -5 | sed 's/^ *//' | tr '\n' ';' | sed 's/;/;  /g')"
+  echo "  $(systemd-analyze blame 2>/dev/null | grep -v '\.device\|\.mount\|\.slice' | head -5 | sed 's/^ *//' | tr '\n' ';' | sed 's/;/;  /g')"
   free -m | awk '/Mem:/{printf "  RAM used %d of %d MiB\n",$3,$2} /Swap:/{printf "  swap used %d of %d MiB\n",$3,$2}'
   echo "  processes: $(ps -e --no-headers | wc -l)   services running: $(systemctl list-units --type=service --state=running --no-legend 2>/dev/null | wc -l)"
   for d in /sys/block/*/queue/scheduler; do [ -e "$d" ] && printf '  %s scheduler: %s\n' "$(echo "$d" | cut -d/ -f4)" "$(cat "$d")"; done | grep -v -E 'loop|zram|ram'

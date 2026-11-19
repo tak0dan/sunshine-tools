@@ -22,7 +22,7 @@
   },
   "usr/local/bin/sunshine-desktops": {
    "mode": "755",
-   "sha256": "5d3f60e80b698cdec1cb24940e23d37eee42c59620773705f275ab9b9214e5a8"
+   "sha256": "e3d2f02bd56b6f86c8fe597c6a018696667aa57564e500f2dd8b1aa00a9a978c"
   },
   "usr/local/bin/sunshine-detect-location": {
    "mode": "755",
@@ -34,7 +34,7 @@
   },
   "usr/local/bin/sunshine-doctor": {
    "mode": "755",
-   "sha256": "b0c25dacc68c86b514d4b18eb31f980d9b2482dbb004b6447bd03219b9f44a71"
+   "sha256": "aec58b7e84a848a6a2191320614384bbe4fce906c0d9ca3be04e99594add3e9c"
   },
   "usr/local/bin/sunshine-drivers": {
    "mode": "755",
@@ -77,8 +77,8 @@
    "sha256": "996bb02364ab891b1c3cb9930a6daf360a082b42522551280353440cefd68f1b"
   },
   "usr/local/bin/sunshine-install": {
-   "mode": "644",
-   "sha256": "a84161e816ba0eebf3c87eb150280d63a163e4f9ce8488b03e5f38ea111e4507"
+   "mode": "755",
+   "sha256": "a8a5bb6e5b4e1e8fa94d8a88a7685713ac1438cec8a735475f1252d11475edc2"
   },
   "usr/local/bin/sunshine-kernel": {
    "mode": "755",
@@ -102,7 +102,7 @@
   },
   "usr/local/bin/sunshine-performance": {
    "mode": "755",
-   "sha256": "aff05ebb7bf93225ffd7a838b074b2ddd5dee70e89d745e0ebc5210d8973676a"
+   "sha256": "be306e6e0194658c78c97ad8c3fb6afccc027eae7be562951f7ac373d3dc4b7d"
   },
   "usr/local/bin/sunshine-pet": {
    "mode": "755",
@@ -117,8 +117,8 @@
    "sha256": "20688213183aee49d08b41f946571c7773e9208780adc5e0f7298329404ae809"
   },
   "usr/local/bin/sunshine-post-install": {
-   "mode": "644",
-   "sha256": "895ed9e2fb39687b757f3d51031caa44bbd89ffa8422f869b06861eb75689a83"
+   "mode": "755",
+   "sha256": "36aebc9ce93176fe7372bed3a1aefd226368e4492966a2f4f59b858a6fa5b772"
   },
   "usr/local/bin/sunshine-prompt": {
    "mode": "755",
@@ -134,7 +134,7 @@
   },
   "usr/local/bin/sunshine-rescue": {
    "mode": "755",
-   "sha256": "39afb8cce17821e042f801d6b95d85a145177225e8a8fd0b31d5f011dd776284"
+   "sha256": "c7090e3a3eaf4d2476a73703bda4ce91a5b511606394f0b96a28c8b5145102d8"
   },
   "usr/local/bin/sunshine-reset-plasma": {
    "mode": "755",
@@ -143,6 +143,10 @@
   "usr/local/bin/sunshine-restore-visuals": {
    "mode": "755",
    "sha256": "b2ae3dc9f17b10fac0e1c6034b5af9053ba7c4f1e3fe13dc73fce609a7e88e79"
+  },
+  "usr/local/bin/sunshine-secureboot": {
+   "mode": "755",
+   "sha256": "fdc65021b609c6e9389f35ff1a6613b3102bc866129d4661d2f8417a7009e0bf"
   },
   "usr/local/bin/sunshine-session": {
    "mode": "755",
@@ -170,7 +174,7 @@
   },
   "usr/local/bin/sunshine-support": {
    "mode": "755",
-   "sha256": "1d9168a48c93adf98432b2fed113db8ad08f2cd25bc9ae35d774cd34813b8b62"
+   "sha256": "f1dc48c2bbb6543c944c02e0295ec94f7cb918cb772addd9d310c1cca4e3d6cc"
   },
   "usr/local/bin/sunshine-term": {
    "mode": "755",
@@ -186,14 +190,14 @@
   },
   "usr/local/bin/sunshine-toolsync": {
    "mode": "755",
-   "sha256": "5a91a7849211cc3c84423af7dd86a3438c4349029d209ffdd5f31b1af341d93b"
+   "sha256": "8736c7f2ec1d83f60406a10126ccaef937408f4b5ee244f9ff6c7b81f898c3b8"
   },
   "usr/local/bin/sunshine-topbar": {
    "mode": "755",
    "sha256": "9a8017756a16350fd45415ac607915b6aff25adca514e3fca460b9ae10576f03"
   },
   "usr/local/bin/sunshine-update": {
-   "mode": "644",
+   "mode": "755",
    "sha256": "3fff847295b0e8936080052306d9ce9c29dc5624d9d460804f6ffcba19d1b095"
   },
   "usr/local/bin/sunshine-update-check": {
@@ -201,11 +205,11 @@
    "sha256": "a9836b426e5fc87e14854e38f8a963cb8dbc36ee933ed2a4f307d7958ff92c8d"
   },
   "usr/local/bin/sunshine-update-notifier": {
-   "mode": "644",
+   "mode": "755",
    "sha256": "a7f587b1cc1ba63d7c39b3b528abdc116ed3cd71477a8203c5e1592c875c55b9"
   },
   "usr/local/bin/sunshine-update-run": {
-   "mode": "644",
+   "mode": "755",
    "sha256": "84cf21a634ad7762147e68e7ed91d1ab13bc27e13f0cfc8770e8b212ef690c72"
   },
   "usr/local/bin/sunshine-webapp": {
@@ -213,8 +217,8 @@
    "sha256": "9b84b517cf5b3157017798d04dcc9544426ed8b9a36bf15c88f13775e7256513"
   },
   "usr/local/bin/sunshine-welcome": {
-   "mode": "644",
-   "sha256": "0c7e7c5ae459d9394ea7d29d48a21f3d31572b651f7314d56a4f85d73d2acd24"
+   "mode": "755",
+   "sha256": "b1962f8fdd32d1397a8a7f645bd7357eab1911293ad1f914a9bb72ef80e7e23f"
   },
   "usr/local/lib/sunshine/i18n.py": {
    "mode": "644",
@@ -366,8 +370,8 @@
   },
   "usr/share/sunshine/i18n/uk.tsv": {
    "mode": "644",
-   "sha256": "380829c91f8f7c79bce5e963e00fbbfc78b38e4b14f0d99016fcbc2114497211"
+   "sha256": "eff7918eaccd870a00a59285e487d82438e6d48f9e60c718df32e981d13e62d8"
   }
  },
- "version": "2026.11.19.152"
+ "version": "2026.11.19.167"
 }

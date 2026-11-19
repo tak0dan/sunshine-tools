@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Secure Boot status (read-only). Enabling Secure Boot with signed boot files is planned (docs/team/research/secureboot-design-opencode.md): it needs keys
+# enrolled in the firmware and every kernel/GRUB update signed, and a mistake can make a computer unbootable, so this tool only REPORTS for now.
+#   sunshine-secureboot status
+[ -r /usr/local/lib/sunshine/ui.sh ] && . /usr/local/lib/sunshine/ui.sh || { sec() { echo "* $*"; }; ok() { echo "+ $*"; }; bad() { echo "x $*"; }; loc() { printf '%s' "$*"; }; }
+[ "${1:-status}" = status ] || { sed -n 2,5p "$0"; exit 2; }
+sec "Secure Boot"
+if [ ! -d /sys/firmware/efi ]; then echo "$(loc "This computer started in BIOS (legacy) mode: Secure Boot does not apply.")"; exit 0; fi
+sb=unknown
+if command -v mokutil >/dev/null; then sb=$(mokutil --sb-state 2>/dev/null | head -1); fi
+[ "$sb" = unknown ] && [ -r /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c ] && sb=$([ "$(od -An -t u1 -j4 -N1 /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c 2>/dev/null | tr -d ' ')" = 1 ] && echo "SecureBoot enabled" || echo "SecureBoot disabled")
+echo "  $sb"
+if command -v sbctl >/dev/null; then sbctl status 2>/dev/null | sed 's/^/  /'; fi
+case "$sb" in *enabled*) echo "$(loc "Secure Boot is ON in the firmware. Sunshine OS boot files are not signed by this system yet: if it does not start, switch Secure Boot off in the firmware settings (UEFI) or boot the live medium.")";;
+  *) echo "$(loc "Secure Boot is OFF: Sunshine OS starts normally.")";; esac
