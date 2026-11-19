@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Sunshine OS migrations (the idea is Garuda's garuda-migrations): small, idempotent scripts that change an ALREADY INSTALLED system after an
+# update (a setting that moved, a removed widget, a new default) without touching what you changed yourself. Each script runs once.
+#   sunshine-migrate            run every migration that has not run yet
+#   sunshine-migrate list       all migrations and their state
+#   sunshine-migrate redo NAME  forget that NAME ran, so it runs again next time
+# Scripts live in /usr/share/sunshine/migrations/NNNN-name.sh; the state in /var/lib/sunshine/migrations/ (one file per script: ok or failed:N).
+# Rules for a migration: safe to run twice, never overwrite a user's own change, say what it did, exit 0 when done or not needed.
+[ "$(id -u)" -eq 0 ] || exec sudo "$0" "$@"
+DIR=/usr/share/sunshine/migrations; ST=/var/lib/sunshine/migrations; LOG=/var/log/sunshine/migrations.log
+mkdir -p "$ST" "$(dirname "$LOG")"
+[ -r /usr/local/lib/sunshine/ui.sh ] && . /usr/local/lib/sunshine/ui.sh || { ok() { echo "+ $*"; }; bad() { echo "x $*"; }; loc() { printf '%s' "$*"; }; }
+state() { cat "$ST/$1" 2>/dev/null || echo new; }
+case "${1:-run}" in
+  list) for f in "$DIR"/*.sh; do [ -f "$f" ] || continue; n=$(basename "$f" .sh); printf '  %-40s %s\n' "$n" "$(state "$n")"; done ;;
+  redo) rm -f "$ST/${2:?name}"; ok "$2 $(loc "will run again")" ;;
+  run)
+    ran=0
+    for f in "$DIR"/*.sh; do
+      [ -f "$f" ] || continue; n=$(basename "$f" .sh); s=$(state "$n")
+      case "$s" in ok) continue;; failed:3) continue;; esac       # done, or failed three times: leave it
+      out=$(bash "$f" 2>&1); rc=$?
+      printf '[%s] %s rc=%s %s\n' "$(date '+%F %T')" "$n" "$rc" "$out" >> "$LOG"
+      if [ $rc = 0 ]; then echo ok > "$ST/$n"; ok "$n${out:+: $out}"; ran=$((ran+1))
+      else k=${s#failed:}; [ "$s" = new ] && k=0; echo "failed:$((k+1))" > "$ST/$n"; bad "$n failed ($out)"; fi
+    done
+    [ $ran = 0 ] || echo "$(loc "migrations applied"): $ran" ;;
+  *) sed -n 2,9p "$0"; exit 2 ;;
+esac

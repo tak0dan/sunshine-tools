@@ -31,7 +31,26 @@ if [ -d /etc/pacman.d/gnupg ] && pacman-key --list-keys 2>/dev/null | grep -qi '
 else bad "package keyring missing or empty"
   [ $FIX = 1 ] && pacman-key --init >/dev/null 2>&1 && pacman-key --populate >/dev/null 2>&1 && fx "keyring initialised"; fi
 if out=$(pacman -Dk 2>&1); then ok "package database consistent"; else bad "package database problem: $(echo "$out" | head -2 | tr '\n' ' ')"; fi
-n=$(find /etc -name '*.pacnew' 2>/dev/null | wc -l); [ "$n" -gt 0 ] && warn "$n config update(s) waiting for review (*.pacnew)" || ok "no pending .pacnew files"
+for r in $(pacman-conf --repo-list 2>/dev/null); do
+  db=/var/lib/pacman/sync/$r.db
+  if [ ! -s "$db" ]; then dbs_bad="$dbs_bad $r"; elif ! bsdtar -tf "$db" >/dev/null 2>&1; then dbs_bad="$dbs_bad $r"; rm -f "$db"; fi
+done
+if [ -n "${dbs_bad:-}" ]; then warn "package databases missing or damaged:$dbs_bad"; [ $FIX = 1 ] && pacman -Sy >/dev/null 2>&1 && fx "package databases downloaded again"; else ok "package databases are intact"; fi
+# a partial upgrade (pacman -Sy, then installing something, without -u) is the classic way to break Arch
+if [ -r /var/log/pacman.log ] && awk '/synchronizing package lists/{sync=1} /starting full system upgrade/{sync=0} /\[ALPM\] (installed|upgraded) /{ if (sync) bad=1 } END{exit !bad}' /var/log/pacman.log; then
+  warn "packages were installed after a database refresh without a full upgrade (partial upgrade): sunshine-update fixes it"; [ $FIX = 1 ] && pacman -Syu --noconfirm >/tmp/sunshine-partial.log 2>&1 && fx "system fully upgraded"
+else ok "no partial upgrade detected"; fi
+# the packages without which the system cannot boot or log in (a broken removal, a bad cleanup): --fix puts them back from the repositories
+core_missing=
+for p in base linux-firmware mkinitcpio grub sudo networkmanager sddm plasma-desktop pipewire pacman sunshine-base; do pacman -Qq "$p" >/dev/null 2>&1 || core_missing="$core_missing $p"; done
+pacman -Qq linux linux-lts linux-zen linux-hardened linux-cachyos >/dev/null 2>&1 || core_missing="$core_missing linux"
+if [ -z "$core_missing" ]; then ok "core packages are installed"
+else bad "core packages missing:$core_missing"
+  if [ $FIX = 1 ]; then pacman -S --noconfirm --needed $core_missing >/tmp/sunshine-core.log 2>&1 && fx "reinstalled:$core_missing" || { bad "could not reinstall (see /tmp/sunshine-core.log)"; tail -3 /tmp/sunshine-core.log; }; fi
+fi
+for r in community testing staging extra-testing core-testing multilib-testing; do grep -q "^\[$r\]" /etc/pacman.conf 2>/dev/null && { bad "pacman.conf has the obsolete or unstable repository [$r]"; [ $FIX = 1 ] && /usr/local/bin/sunshine-fix-pacman >/dev/null 2>&1 && fx "obsolete repositories removed"; }; done
+n=$(find /etc -name '*.pacnew' 2>/dev/null | wc -l)
+if [ "$n" -gt 0 ]; then warn "$n config update(s) waiting for review (*.pacnew)"; [ $FIX = 1 ] && [ -x /usr/local/bin/sunshine-pacnew ] && /usr/local/bin/sunshine-pacnew auto 2>/dev/null | sed 's/^/    /' && fx "safe config updates applied (sunshine-pacnew review shows the rest)"; else ok "no pending .pacnew files"; fi
 if /usr/local/bin/sunshine-repo check --quiet; then ok "[sunshine] repository is configured"
 else bad "the [sunshine] package repository is missing or wrong in /etc/pacman.conf"
   [ $FIX = 1 ] && /usr/local/bin/sunshine-repo ensure --quiet && fx "[sunshine] repository restored"; fi
@@ -57,14 +76,42 @@ if [ -n "$(ls /usr/share/wayland-sessions/hyprland*.desktop 2>/dev/null)" ] && !
 sec "Boot"
 if [ $LIVE = 1 ]; then ok "live session: boot files are checked on the installed system"
 else
-[ -f /boot/vmlinuz-linux ] && ok "kernel image present" || bad "/boot/vmlinuz-linux missing"
-if [ -s /boot/initramfs-linux.img ]; then ok "initramfs present"
-else bad "/boot/initramfs-linux.img missing or empty"
-  if [ $FIX = 1 ]; then
-    kv=$(ls /usr/lib/modules | head -1); tmp=$(mktemp /boot/.initramfs.XXXXXX)
-    if mkinitcpio -k "$kv" -g "$tmp" >/tmp/sunshine-mkinitcpio.log 2>&1 && [ -s "$tmp" ]; then mv -f "$tmp" /boot/initramfs-linux.img && fx "initramfs rebuilt"
-    else rm -f "$tmp"; bad "mkinitcpio failed (kept nothing half-written); see /tmp/sunshine-mkinitcpio.log"; tail -3 /tmp/sunshine-mkinitcpio.log; fi
+# every installed kernel (linux, linux-lts, linux-zen ...) needs its image and its initramfs
+nk=0
+for kd in /usr/lib/modules/*/; do
+  [ -f "$kd/vmlinuz" ] || continue; nk=$((nk+1))
+  base=linux; [ -f "$kd/pkgbase" ] && base=$(cat "$kd/pkgbase")
+  if [ -f "/boot/vmlinuz-$base" ] && ! cmp -s "$kd/vmlinuz" "/boot/vmlinuz-$base"; then bad "/boot/vmlinuz-$base differs from the installed kernel (damaged or half-copied)"; [ $FIX = 1 ] && cp --sparse=never --reflink=never "$kd/vmlinuz" "/boot/vmlinuz-$base" && chmod 644 "/boot/vmlinuz-$base" && fx "vmlinuz-$base rewritten"; fi
+  [ -f "/boot/vmlinuz-$base" ] && ok "kernel image present: $base" || { bad "/boot/vmlinuz-$base missing"; [ $FIX = 1 ] && cp --sparse=never --reflink=never "$kd/vmlinuz" "/boot/vmlinuz-$base" && chmod 644 "/boot/vmlinuz-$base" && fx "vmlinuz-$base restored"; }
+  if [ -s "/boot/initramfs-$base.img" ]; then ok "initramfs present: $base"
+  else bad "/boot/initramfs-$base.img missing or empty"
+    if [ $FIX = 1 ]; then
+      kv=$(basename "$kd"); tmp=$(mktemp /boot/.initramfs.XXXXXX)
+      if mkinitcpio -k "$kv" -g "$tmp" >/tmp/sunshine-mkinitcpio.log 2>&1 && [ -s "$tmp" ]; then mv -f "$tmp" "/boot/initramfs-$base.img" && chmod 600 "/boot/initramfs-$base.img" && fx "initramfs rebuilt: $base"
+      else rm -f "$tmp"; bad "mkinitcpio failed (kept nothing half-written); see /tmp/sunshine-mkinitcpio.log"; tail -3 /tmp/sunshine-mkinitcpio.log; fi
+    fi
   fi
+done
+[ $nk = 0 ] && bad "no kernel is installed (pacman -S linux)"
+if [ -e /var/lib/sunshine/initramfs_error ]; then bad "the last package transaction left an incomplete boot setup ($(cat /var/lib/sunshine/initramfs_error))"; [ $FIX = 1 ] && { /usr/local/bin/sunshine-state-hook >/dev/null 2>&1; [ -e /var/lib/sunshine/initramfs_error ] || fx "boot files complete again"; }; fi
+if [ -f /var/lib/sunshine/last_update ]; then
+  age=$(( ($(date +%s) - $(stat -c %Y /var/lib/sunshine/last_update)) / 86400 ))
+  [ "$age" -gt 14 ] && warn "the last update was $age days ago (sunshine-update)" || ok "last update: $age day(s) ago"
+  [ "$(stat -c %Y /var/lib/sunshine/last_update)" -gt "$(awk '/^btime/{print $2}' /proc/stat)" ] && warn "an update was applied since the last restart: restart to use it"
+fi
+if [ -d /sys/firmware/efi ]; then
+  if [ -f /boot/efi/EFI/BOOT/BOOTX64.EFI ] || [ -f /boot/EFI/BOOT/BOOTX64.EFI ]; then ok "EFI fallback boot file present"
+  else bad "EFI fallback boot file (EFI/BOOT/BOOTX64.EFI) is missing: some firmwares will not find the system"; [ $FIX = 1 ] && grub-install --target=x86_64-efi --efi-directory=/boot/efi --removable --recheck >/dev/null 2>&1 && fx "EFI fallback boot file restored"; fi
+fi
+bf=$(df --output=avail -BM /boot | tail -1 | tr -dc 0-9); [ "${bf:-999}" -lt 100 ] && warn "/boot has only ${bf} MB free (kernel updates may fail: remove old kernels with sunshine-kernel remove)" || ok "/boot has ${bf} MB free"
+if [ -d /sys/firmware/efi ] && mountpoint -q /boot/efi; then ef=$(df --output=avail -BM /boot/efi | tail -1 | tr -dc 0-9); [ "${ef:-99}" -lt 5 ] && warn "EFI partition has only ${ef} MB free"; fi
+case "$(grep -m1 vendor_id /proc/cpuinfo | awk '{print $3}')" in
+  GenuineIntel) pacman -Qq intel-ucode >/dev/null 2>&1 && ok "Intel microcode installed" || { warn "intel-ucode is not installed (CPU security fixes)"; [ $FIX = 1 ] && pacman -S --noconfirm --needed intel-ucode >/dev/null 2>&1 && fx "intel-ucode installed"; };;
+  AuthenticAMD) pacman -Qq amd-ucode >/dev/null 2>&1 && ok "AMD microcode installed" || { warn "amd-ucode is not installed (CPU security fixes)"; [ $FIX = 1 ] && pacman -S --noconfirm --needed amd-ucode >/dev/null 2>&1 && fx "amd-ucode installed"; };;
+esac
+if command -v dkms >/dev/null && [ -n "$(dkms status 2>/dev/null)" ]; then
+  if dkms status 2>/dev/null | grep -v installed | grep -q .; then warn "a DKMS module (NVIDIA, VirtualBox ...) is not built for a kernel"; [ $FIX = 1 ] && dkms autoinstall >/dev/null 2>&1 && fx "DKMS modules built"
+  else ok "DKMS modules are built"; fi
 fi
 if [ -f /boot/vmlinuz-linux ] && [ "$(findmnt -no FSTYPE /boot 2>/dev/null || findmnt -no FSTYPE /)" = btrfs ]; then
   # GRUB cannot read btrfs files that end in a hole ("premature end of file")
@@ -79,18 +126,80 @@ PY
   else bad "kernel image has holes: GRUB would fail with 'premature end of file'"
     if [ $FIX = 1 ]; then cp --sparse=never --reflink=never /boot/vmlinuz-linux /boot/vmlinuz-linux.dense && mv -f /boot/vmlinuz-linux.dense /boot/vmlinuz-linux && fx "kernel rewritten"; fi; fi
 fi
-[ -f /boot/grub/grub.cfg ] && ok "GRUB menu present" || { bad "/boot/grub/grub.cfg missing"; [ $FIX = 1 ] && grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1 && fx "GRUB menu regenerated"; }
+if grep -q menuentry /boot/grub/grub.cfg 2>/dev/null; then ok "GRUB menu present"; else bad "/boot/grub/grub.cfg is missing or has no boot entries"; [ $FIX = 1 ] && grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1 && grep -q menuentry /boot/grub/grub.cfg && fx "GRUB menu regenerated"; fi
 if [ -d /sys/firmware/efi ]; then mountpoint -q /boot/efi && ok "EFI partition mounted" || warn "EFI partition not mounted at /boot/efi (kernel/GRUB updates may not reach it)"; fi
 if findmnt --verify >/dev/null 2>&1; then ok "/etc/fstab consistent"; else warn "/etc/fstab has problems (run: findmnt --verify)"; fi
 fi
 
 sec "System"
+if command -v smartctl >/dev/null; then
+  for d in $(lsblk -dno NAME,TYPE | awk '$2=="disk" && $1!~/^(zram|loop|sr|ram)/{print $1}'); do
+    r=$(smartctl -H "/dev/$d" 2>/dev/null | grep -iE 'overall-health|SMART Health Status' | head -1)
+    case "$r" in *PASSED*|*OK*) ok "disk $d health: passed";; *FAIL*) bad "disk $d reports SMART FAILURE: back up your data now";; esac
+  done
+fi
+if [ "$(findmnt -no FSTYPE / 2>/dev/null)" = btrfs ]; then
+  e=$(btrfs device stats / 2>/dev/null | awk '{s+=$2} END{print s+0}'); [ "${e:-0}" -gt 0 ] && warn "btrfs counted $e device error(s): run sunshine-doctor on a schedule and consider a scrub (sudo btrfs scrub start /)" || ok "btrfs reports no device errors"
+fi
+[ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)" = yes ] && ok "clock is synchronised" || warn "clock is not synchronised (certificates and updates can fail)"
+swapon --noheadings 2>/dev/null | grep -q . && ok "swap is active" || warn "no swap is active (zram swap normally is: sunshine-performance on)"
 fu=$(systemctl --failed --no-legend 2>/dev/null | awk '{print $2}' | tr '\n' ' ')
 [ -z "${fu// }" ] && ok "no failed services" || warn "failed services: $fu"
 use=$(df --output=pcent / | tail -1 | tr -dc 0-9)
 if [ "${use:-0}" -ge 95 ]; then bad "root disk ${use}% full"; elif [ "${use:-0}" -ge 85 ]; then warn "root disk ${use}% full"; else ok "root disk ${use}% used"; fi
 [ "$(systemctl is-active NetworkManager 2>/dev/null)" = active ] && ok "network service running" || warn "NetworkManager is not running"
 [ -d "/usr/lib/modules/$(uname -r)" ] && ok "running kernel matches installed modules" || warn "kernel was updated: restart to use it"
+
+if [ $LIVE = 0 ]; then
+  # lessons from other distributions' health tools and AI reviews: things that leave a system "booting but unusable"
+  grep -q ' / .* ro[ ,]' /proc/mounts && bad "the root file system is mounted read-only (a disk error forced it): run sunshine-rescue fsck from the live session" || ok "root is writable"
+  if [ -L /etc/resolv.conf ] && [ ! -e /etc/resolv.conf ]; then bad "/etc/resolv.conf is a dead link (no DNS)"; [ $FIX = 1 ] && ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf && systemctl enable --now systemd-resolved >/dev/null 2>&1 && fx "DNS link restored"
+  elif [ ! -s /etc/resolv.conf ]; then bad "/etc/resolv.conf is empty (no DNS)"; [ $FIX = 1 ] && ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf && systemctl enable --now systemd-resolved >/dev/null 2>&1 && fx "DNS link restored"
+  else ok "DNS configuration present"; fi
+  if [ -f /boot/grub/grub.cfg ]; then
+    case "$(grep -m1 vendor_id /proc/cpuinfo | awk '{print $3}')" in GenuineIntel) u=intel-ucode;; AuthenticAMD) u=amd-ucode;; *) u=;; esac
+    if [ -n "$u" ] && pacman -Qq "$u" >/dev/null 2>&1; then grep -q "$u" /boot/grub/grub.cfg && ok "microcode is in the boot menu" || { warn "$u is installed but the GRUB menu does not load it"; [ $FIX = 1 ] && grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1 && fx "boot menu rebuilt (microcode added)"; }; fi
+  fi
+  # an encrypted root needs the encrypt hook in the initramfs, or the system cannot ask for the passphrase
+  if grep -qE 'cryptdevice=|rd.luks' /proc/cmdline || [ "$(findmnt -no SOURCE / | cut -c1-12)" = /dev/mapper/ ]; then
+    if grep -qE '^HOOKS=.*(encrypt|sd-encrypt)' /etc/mkinitcpio.conf; then ok "initramfs can unlock the encrypted disk"
+    else bad "the root is encrypted but mkinitcpio.conf has no encrypt hook: the next boot would stop at the passphrase"; fi
+  fi
+fi
+
+if [ $LIVE = 0 ]; then
+  bad_hooks=$(. /etc/mkinitcpio.conf 2>/dev/null; for h in "${HOOKS[@]}"; do [ -e "/usr/lib/initcpio/install/$h" ] || [ -e "/etc/initcpio/install/$h" ] || printf '%s ' "$h"; done)
+  [ -z "$bad_hooks" ] && ok "mkinitcpio hooks all exist" || { bad "mkinitcpio.conf names hooks that do not exist: $bad_hooks (the next kernel update would fail to build an initramfs)"; }
+  for svc in NetworkManager sddm; do
+    pacman -Qq "$([ $svc = sddm ] && echo sddm || echo networkmanager)" >/dev/null 2>&1 || continue
+    systemctl is-enabled --quiet "$svc" 2>/dev/null && ok "$svc is enabled" || { bad "$svc is not enabled"; [ $FIX = 1 ] && systemctl enable "$svc" >/dev/null 2>&1 && fx "$svc enabled"; }
+  done
+  systemctl is-active --quiet NetworkManager 2>/dev/null || { warn "NetworkManager is not running"; [ $FIX = 1 ] && systemctl start NetworkManager >/dev/null 2>&1 && fx "NetworkManager started"; }
+  if command -v visudo >/dev/null; then
+    if visudo -c >/dev/null 2>&1; then ok "sudo configuration is valid"
+    else bad "sudo configuration has a syntax error (sudo would refuse to work)"
+      if [ $FIX = 1 ]; then
+        for f in /etc/sudoers.d/*; do [ -f "$f" ] && ! visudo -cf "$f" >/dev/null 2>&1 && mv "$f" "$f.broken" && fx "broken sudoers.d file set aside: $f.broken"; done
+        visudo -c >/dev/null 2>&1 || { [ -f /etc/sudoers.pacnew ] && cp /etc/sudoers /etc/sudoers.broken && cp /etc/sudoers.pacnew /etc/sudoers && fx "sudoers restored from the packaged copy (old one kept as sudoers.broken)"; }
+      fi
+    fi
+  fi
+  [ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)" = yes ] || { [ $FIX = 1 ] && timedatectl set-ntp true >/dev/null 2>&1 && systemctl restart systemd-timesyncd >/dev/null 2>&1 && fx "time synchronisation switched on"; }
+  ru=$(df --output=pcent / | tail -1 | tr -dc 0-9); if [ "${ru:-0}" -ge 95 ] && [ $FIX = 1 ] && [ -x /usr/local/bin/sunshine-fix ]; then /usr/local/bin/sunshine-fix storage >/dev/null 2>&1; [ "$(df --output=pcent / | tail -1 | tr -dc 0-9)" -lt "$ru" ] && fx "space freed (old package files, logs, thumbnails)"; fi
+fi
+
+if [ $LIVE = 0 ]; then
+  if [ -f /boot/grub/grub.cfg ]; then
+    badroot=; for u in $(grep -o 'root=UUID=[A-Fa-f0-9-]*' /boot/grub/grub.cfg | sort -u | cut -d= -f3); do blkid -U "$u" >/dev/null 2>&1 || badroot="$badroot $u"; done
+    if [ -z "$badroot" ]; then ok "the boot menu points to an existing root partition"
+    else bad "the GRUB menu boots from a root UUID that no longer exists:$badroot (the system would stop at boot)"; [ $FIX = 1 ] && grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1 && fx "boot menu rebuilt for the current root"; fi
+  fi
+  [ -e /etc/localtime ] && ok "time zone is set" || { warn "no time zone is set (clock shows UTC)"; }
+  [ -s /etc/locale.conf ] && ok "system language is set" || warn "no system language is set (/etc/locale.conf is missing: localectl set-locale LANG=en_US.UTF-8)"
+  for u in NetworkManager bluetooth cups sddm systemd-resolved systemd-timesyncd; do
+    systemctl is-failed --quiet "$u" 2>/dev/null && { warn "$u failed"; [ $FIX = 1 ] && systemctl reset-failed "$u" 2>/dev/null; [ $FIX = 1 ] && systemctl restart "$u" 2>/dev/null && fx "$u restarted"; }
+  done
+fi
 
 sec "Restore points"
 if [ $LIVE = 1 ]; then ok "live session: restore points are checked on the installed system"
@@ -111,6 +220,7 @@ else
   for u in snapper-timeline.timer snapper-cleanup.timer grub-btrfsd.service; do
     systemctl is-enabled "$u" >/dev/null 2>&1 && ok "$u enabled" || { warn "$u not enabled"; [ $FIX = 1 ] && systemctl enable --now "$u" >/dev/null 2>&1 && fx "$u enabled"; }; done
   if [ -e /etc/snapper/configs/root ]; then
+    if ! snapper -c root list >/dev/null 2>&1; then bad "snapper cannot read its snapshots (.snapshots missing or on another disk)"; [ $FIX = 1 ] && /usr/local/bin/sunshine-snapshots-setup / >/dev/null 2>&1 && fx "snapshot backend set up again"; fi
     c=$(snapper -c root list --columns number 2>/dev/null | grep -c '^ *[1-9]')
     [ "${c:-0}" -gt 0 ] && ok "$c restore point(s) available" || warn "no restore points yet (sunshine-snapshot create)"
   fi

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Repair an installed system
+Name[uk]=Відновити встановлену систему
+Comment=Find the installed system on this computer and repair its boot, packages and kernel
+Exec=konsole --hide-menubar -p tabtitle=Rescue -e bash -c "sudo sunshine-rescue; echo; read -rp 'Press Enter to close this window.' _"
+Icon=system-recovery
+Terminal=false
+Categories=System;

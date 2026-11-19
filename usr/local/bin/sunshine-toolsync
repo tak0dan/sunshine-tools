@@ -8,6 +8,7 @@
 #   sunshine-toolsync verify      check the installed tools against the manifest of the installed version
 # The files it may touch are limited to the Sunshine paths listed in ALLOW below; it never touches your own files.
 [ "$(id -u)" -eq 0 ] || exec sudo "$0" "$@"
+# shellcheck disable=SC2034 # fallback colour names mirror ui.sh even when unused here
 [ -r /usr/local/lib/sunshine/ui.sh ] && . /usr/local/lib/sunshine/ui.sh || { sec() { echo "* $*"; }; ok() { echo "+ $*"; }; bad() { echo "x $*"; }; loc() { printf '%s' "$*"; }; Y=; G=; R=; B=; N=; }
 BASE=${SUNSHINE_TOOLS_URL:-https://github.com/tak0dan/sunshine-tools/releases/download/tools}
 KEY=${SUNSHINE_TOOLS_KEY:-/usr/share/pacman/keyrings/sunshine.gpg}
@@ -60,7 +61,7 @@ for p,v in sorted(m["files"].items()): print("%s\t%s\t%s" % (p, v["sha256"], v.g
     echo "$new" > "$VERFILE"; cp "$T/manifest.json" "$STATE/tools-manifest.json"
     [ -d "$BK" ] && ln -sfn "$BK" "$STATE/tools-backup/latest"
     ok "$(loc "tools updated"): $cur -> $new ($n $(loc "files changed"), $skipped $(loc "refused"))"
-    # a new plasmoid or look-and-feel needs the shell to notice: nothing to do now, it loads at the next login
+    [ -x /usr/local/bin/sunshine-migrate ] && /usr/local/bin/sunshine-migrate run
     ;;
   rollback)
     BK=$(readlink -f "$STATE/tools-backup/latest" 2>/dev/null); [ -d "$BK" ] || die "$(loc "nothing to roll back")"

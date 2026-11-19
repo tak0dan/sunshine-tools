@@ -7,6 +7,7 @@
 #   sunshine-kernel default NAME       boot this kernel by default
 #   sunshine-kernel rebuild            rebuild every initramfs and the boot menu
 [ "$(id -u)" -eq 0 ] || exec sudo "$0" "$@"
+# shellcheck disable=SC2034 # fallback colour names mirror ui.sh even when some are unused here
 [ -r /usr/local/lib/sunshine/ui.sh ] && . /usr/local/lib/sunshine/ui.sh || { sec() { echo "* $*"; }; ok() { echo "+ $*"; }; bad() { echo "x $*"; }; loc() { printf '%s' "$*"; }; Y=; G=; R=; B=; N=; }
 [ -d /run/archiso ] && { bad "$(loc "Run this on the installed system (kernels of the live session are not managed).")"; exit 1; }
 KRE='^linux(-(lts|zen|hardened|rt|rt-lts|cachyos|cachyos-lts|cachyos-bore|cachyos-rc|xanmod|mainline|clear|tkg-[a-z0-9]+))?$'
@@ -46,6 +47,7 @@ case "$cmd" in
     pacman -Qq "$k" >/dev/null 2>&1 || { bad "$k: $(loc "is not installed")"; exit 1; }
     [ "$k" = "$(running_pkg)" ] && { bad "$(loc "this is the running kernel: boot another one first")"; exit 1; }
     [ "$(installed | wc -l)" -le 1 ] && { bad "$(loc "that is the last kernel; the system would not boot")"; exit 1; }
+    # shellcheck disable=SC2046 # intentionally empty when the headers package is not installed
     pacman -Rns --noconfirm "$k" $(pacman -Qq "$k-headers" 2>/dev/null) && ok "$k $(loc "removed")"; regen_menu ;;
   default)
     [ -n "$k" ] || { echo "usage: sunshine-kernel default NAME"; exit 2; }

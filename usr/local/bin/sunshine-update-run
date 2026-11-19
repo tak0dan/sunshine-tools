@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Safe, friendly full-system update. Runs as root (via pkexec).
 set -u
-[ -r /usr/local/lib/sunshine/ui.sh ] && . /usr/local/lib/sunshine/ui.sh || { B=; Y=; G=; R=; N=; say() { echo "* $*"; }; ok() { echo "+ $*"; }; bad() { echo "x $*"; }; cozy_done() { :; }; sun_success_anim() { :; }; }
+# shellcheck disable=SC2034 # fallback colour names mirror ui.sh even when some are unused here
+[ -r /usr/local/lib/sunshine/ui.sh ] && . /usr/local/lib/sunshine/ui.sh || { B=; Y=; G=; R=; N=; say() { echo "* $*"; }; ok() { echo "+ $*"; }; bad() { echo "x $*"; }; loc() { printf '%s' "$*"; }; t() { printf '%s' "${2:-$1}"; }; cozy_done() { :; }; sun_success_anim() { :; }; }
 finish() { echo; read -rp "Press Enter to close this window." _; exit "${1:-0}"; }
 
 [ "$(id -u)" -eq 0 ] || exec pkexec "$0" "$@"
@@ -22,6 +23,19 @@ say "Latest Arch Linux news (read if something looks important)"
 curl -fsS --max-time 8 https://archlinux.org/feeds/news/ 2>/dev/null \
   | grep -o '<title>[^<]*</title>' | sed -n '2,4p' | sed 's/<[^>]*>//g;s/^/  • /' || true
 
+# Arch announces breaking changes in the news ("manual intervention required"): if a recent item says so, stop and make the user read it
+news=$(curl -fsS --max-time 8 https://archlinux.org/feeds/news/ 2>/dev/null | python3 -c '
+import sys,re,datetime,email.utils
+x=sys.stdin.read()
+for it in re.findall(r"<item>(.*?)</item>",x,re.S)[:4]:
+    t=re.search(r"<title>(.*?)</title>",it,re.S); d=re.search(r"<pubDate>(.*?)</pubDate>",it,re.S); b=re.search(r"<description>(.*?)</description>",it,re.S)
+    if not (t and d): continue
+    age=(datetime.datetime.now(datetime.timezone.utc)-email.utils.parsedate_to_datetime(d.group(1))).days
+    if age<=21 and re.search(r"intervention|manual|requires? (manual|action)|before (you )?upgrad",t.group(1)+(b.group(1) if b else ""),re.I): print(t.group(1))' 2>/dev/null)
+if [ -n "$news" ]; then
+  printf '\n%sArch Linux announced a change that may need your action before updating:%s\n  %s\n  https://archlinux.org/news/\n' "$Y$B" "$N" "$news"
+  read -rp "Have you read it and want to continue anyway? [y/N] " a; [ "${a,,}" = y ] || finish 0
+fi
 say "Checking for updates"
 if command -v checkupdates >/dev/null; then
   list=$(sudo -u "${REAL_USER:-nobody}" checkupdates 2>/dev/null || true)
@@ -29,6 +43,15 @@ if command -v checkupdates >/dev/null; then
   [ "$n" -gt 0 ] && { echo "$n package update(s) available."; } || echo "$(loc "No system package updates right now.")"
 fi
 
+# a kernel update without the matching NVIDIA module (prebuilt packages move together) would boot to a black screen
+if command -v checkupdates >/dev/null && pacman -Qq nvidia-open nvidia-open-lts >/dev/null 2>&1; then
+  ups=$(sudo -u "${REAL_USER:-nobody}" checkupdates 2>/dev/null | awk '{print $1}')
+  for pair in linux:nvidia-open linux-lts:nvidia-open-lts; do k=${pair%%:*}; n=${pair##*:}
+    if grep -qx "$k" <<<"$ups" && pacman -Qq "$n" >/dev/null 2>&1 && ! grep -qx "$n" <<<"$ups"; then
+      bad "The update has a new $k but not yet a matching $n: the NVIDIA driver would not load. Try again in a few hours (the mirrors are still syncing)."; finish 1; fi
+  done
+fi
+if command -v faillock >/dev/null && [ -n "${REAL_USER:-}" ] && faillock --user "$REAL_USER" 2>/dev/null | grep -q '^[0-9]'; then faillock --user "$REAL_USER" --reset && ok "Login lock of $REAL_USER cleared (too many wrong passwords earlier)"; fi
 if [ "$(findmnt -no FSTYPE /)" = btrfs ] && [ -e /etc/snapper/configs/root ]; then
   ok "Restore points are made automatically before and after the update (go back from the boot menu if anything breaks)"
 fi
@@ -50,7 +73,38 @@ refresh_mirrors() {   # rate-mirrors ranks the mirrors by speed; the old list is
 refresh_mirrors
 
 say "Updating system packages"
-if pacman -Syu; then ok "System packages are up to date"
+free_mb=$(df --output=avail -BM / | tail -1 | tr -dc 0-9)
+if [ "${free_mb:-9999}" -lt 1500 ]; then bad "Less than 1.5 GB is free on the system disk: the update could fail halfway. Free some space first (sunshine-cleanup)."; finish 1; fi
+# the keyring first: a system that was off for months cannot verify new packages with its old keyring (what garuda-update does)
+pacman -Sy --noconfirm --needed archlinux-keyring >/dev/null 2>&1 && ok "Package keyring is current"
+# pacman -Su with one smart retry (the idea is Garuda's garuda-update): read WHY it failed and fix exactly that
+run_update() {
+  local log rc reason extra=()
+  mkdir -p /var/log/sunshine; log=$(mktemp)
+  LANG=C script -qefc "pacman -Su" "$log"; rc=$?      # script keeps the terminal live (prompts, progress) and records the output
+  cat "$log" >> /var/log/sunshine/update.log
+  [ "$rc" -eq 0 ] && { rm -f "$log"; return 0; }
+  reason=$(sed 's/\x1b\[[0-9;]*[A-Za-z]//g' "$log" | tr -d '\r' | grep -oP '(?<=error: failed to commit transaction \().*(?=\))' | tail -1)
+  case "$reason" in
+    "invalid or corrupted package"*|*"PGP signature"*)
+      bad "A downloaded package was damaged. Removing the bad download and trying once more with a fresh key list."
+      sed 's/\x1b\[[0-9;]*[A-Za-z]//g' "$log" | grep -oP '[^ ]+\.pkg\.tar\.[a-z]+' | sort -u | while read -r f; do rm -f "/var/cache/pacman/pkg/$(basename "$f")" "/var/cache/pacman/pkg/$(basename "$f").sig"; done
+      pacman -Sy --noconfirm --needed archlinux-keyring >/dev/null 2>&1; pacman-key --populate >/dev/null 2>&1 ;;
+    "download library error"|*"failed retrieving"*)
+      bad "A download failed. Trying again with one connection at a time and fresh mirrors."
+      refresh_mirrors; extra=(--disable-download-timeout) ;;
+    "conflicting files")
+      if sed 's/\x1b\[[0-9;]*[A-Za-z]//g' "$log" | grep 'exists in filesystem' | grep -qv '__pycache__/.*\.pyc'; then rm -f "$log"; bad "Files of another package are in the way (see above). They are not harmless Python caches, so nothing is overwritten automatically."; return 1; fi
+      bad "Only Python cache files were in the way: overwriting those and trying again."; extra=(--overwrite '/usr/lib/python*/site-packages/*/__pycache__/*.pyc') ;;
+    *) rm -f "$log"; return 1 ;;
+  esac
+  rm -f "$log"; local log2; log2=$(mktemp)
+  LANG=C script -qefc "pacman -Su ${extra[*]}" "$log2"; rc=$?
+  cat "$log2" >> /var/log/sunshine/update.log; rm -f "$log2"
+  return $rc
+}
+if grep -qE 'subvol=@?/.snapshots/[0-9]+/snapshot' /proc/cmdline; then bad "You booted into a restore point (snapshot): updating here would be lost or break it. Restore it first from the boot menu or sunshine-snapshot, then update."; finish 1; fi
+if run_update; then ok "System packages are up to date"
   # a new sunshine-base may bring new repositories (Chaotic-AUR): add them now and update once more
   rm -f /run/sunshine-repo-changed; /usr/local/bin/sunshine-repo ensure --quiet; [ -e /run/sunshine-repo-changed ] && { say "New repository added: updating again"; pacman -Syu --noconfirm; }
   command -v rate-mirrors >/dev/null || { pacman -S --noconfirm --needed rate-mirrors >/dev/null 2>&1 && refresh_mirrors; }
@@ -64,17 +118,19 @@ if [ -x /usr/local/bin/sunshine-declare ]; then
 fi
 
 if command -v flatpak >/dev/null && flatpak remotes 2>/dev/null | grep -q .; then
-  say "Updating Flatpak apps"; flatpak update -y --noninteractive || true
+  say "Updating Flatpak apps"; flatpak update -y --noninteractive || true; flatpak repair --noninteractive >/dev/null 2>&1 || true
 fi
 aurh=$(command -v paru || command -v yay || true)
 if [ -n "$aurh" ] && [ -n "${REAL_USER:-}" ]; then
   say "Updating AUR (community) packages"; sudo -u "$REAL_USER" "$aurh" -Sua --noconfirm --needed || true
 fi
 
+if [ -x /usr/local/bin/sunshine-doctor ]; then say "Final health check"; /usr/local/bin/sunshine-doctor --quiet --fix || true; fi
 say "Tidying up"
 command -v paccache >/dev/null && paccache -rqk2 && ok "Old package cache cleaned"
 orph=$(pacman -Qdtq 2>/dev/null || true)
 [ -n "$orph" ] && echo "Unused packages (you can remove later): $(echo $orph | wc -w)"
+[ -x /usr/local/bin/sunshine-pacnew ] && /usr/local/bin/sunshine-pacnew auto 2>/dev/null | sed 's/^/  /'
 pn=$(find /etc -name '*.pacnew' 2>/dev/null | head -5)
 [ -n "$pn" ] && { echo "$(loc "Config updates waiting for review (*.pacnew):")"; echo "$pn"; }
 if [ -d /usr/lib/modules ] && ! [ -d "/usr/lib/modules/$(uname -r)" ]; then

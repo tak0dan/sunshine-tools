@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Backup of YOUR files (documents, pictures, settings) to a disk or folder you choose, with restic: encrypted, deduplicated, verifiable.
+# Restore points (sunshine-snapshot) protect the system; this protects your own data, also against a dead disk.
+#   sunshine-backup init PATH          make a backup repository at PATH (an external disk folder, a network folder); asks for a password
+#   sunshine-backup run                back up your home folder now (caches, trash and the backup itself are left out)
+#   sunshine-backup list               the backups made so far
+#   sunshine-backup check              verify the stored data is readable and intact
+#   sunshine-backup restore ID [DIR]   put a backup back into DIR (default ~/Restored-ID): nothing is overwritten
+#   sunshine-backup schedule on|off    daily backup in the background while you are logged in (a user timer)
+# Settings: ~/.config/sunshine/backup.conf (repository path), the password is kept in the Plasma wallet / keyring, not in a file.
+CONF=$HOME/.config/sunshine/backup.conf; mkdir -p "$(dirname "$CONF")"
+[ -r /usr/local/lib/sunshine/ui.sh ] && . /usr/local/lib/sunshine/ui.sh || { ok() { echo "+ $*"; }; bad() { echo "x $*"; }; sec() { echo "* $*"; }; loc() { printf '%s' "$*"; }; }
+command -v restic >/dev/null || { bad "$(loc "restic is not installed: sudo pacman -S restic")"; exit 1; }
+REPO=$(sed -n 's/^repo=//p' "$CONF" 2>/dev/null)
+pw() {   # the password: from the keyring when there is one, else asked each time
+  if command -v secret-tool >/dev/null && p=$(secret-tool lookup service sunshine-backup 2>/dev/null) && [ -n "$p" ]; then printf '%s' "$p"; return; fi
+  [ -n "${RESTIC_PASSWORD:-}" ] && { printf '%s' "$RESTIC_PASSWORD"; return; }
+  read -rsp "$(loc "Backup password: ")" p </dev/tty; echo >&2; printf '%s' "$p"
+}
+need_repo() { [ -n "$REPO" ] || { bad "$(loc "no backup repository yet: sunshine-backup init /path")"; exit 1; }; }
+R() { RESTIC_PASSWORD=$(pw) restic -r "$REPO" "$@"; }
+EXC=(--exclude "$HOME/.cache" --exclude "$HOME/.local/share/Trash" --exclude "$HOME/.local/share/Steam/steamapps" --exclude "$HOME/.var/app/*/cache" --exclude "$HOME/Sunshine-Support" --exclude "$HOME/.config/sunshine-backup" --exclude '*.tmp' --exclude 'node_modules')
+case "${1:-}" in
+  init)
+    d=${2:?path}; mkdir -p "$d" || exit 1
+    read -rsp "$(loc "Choose a backup password (you need it to restore; there is no way to recover it): ")" a </dev/tty; echo
+    read -rsp "$(loc "Again: ")" b </dev/tty; echo; [ "$a" = "$b" ] && [ -n "$a" ] || { bad "$(loc "the passwords differ or are empty")"; exit 1; }
+    RESTIC_PASSWORD=$a restic init -r "$d" >/dev/null && ok "$(loc "backup repository created at") $d" || exit 1
+    echo "repo=$d" > "$CONF"
+    command -v secret-tool >/dev/null && printf '%s' "$a" | secret-tool store --label="Sunshine OS backup" service sunshine-backup && ok "$(loc "password saved in your keyring")" ;;
+  run) need_repo; [ -d "$REPO" ] || { bad "$(loc "the backup location is not available (is the disk connected?)"): $REPO"; exit 1; }
+    sec "$(loc "Backing up") $HOME"; R backup "$HOME" "${EXC[@]}" --tag sunshine --one-file-system && ok "$(loc "backup finished")" ;;
+  list) need_repo; R snapshots ;;
+  check) need_repo; R check && ok "$(loc "the backup is intact")" ;;
+  restore) need_repo; id=${2:?backup id (see: sunshine-backup list)}; t=${3:-$HOME/Restored-$id}; mkdir -p "$t"; R restore "$id" --target "$t" && ok "$(loc "restored into") $t" ;;
+  schedule)
+    u=$HOME/.config/systemd/user; mkdir -p "$u"
+    case "${2:-}" in
+      on) printf '[Unit]\nDescription=Sunshine OS backup of the home folder\nConditionPathExists=%s\n[Service]\nType=oneshot\nExecStart=/usr/local/bin/sunshine-backup run\nNice=19\nIOSchedulingClass=idle\n' "${REPO:-/nonexistent}" > "$u/sunshine-backup.service"
+          printf '[Unit]\nDescription=Daily Sunshine OS backup\n[Timer]\nOnCalendar=daily\nPersistent=true\nRandomizedDelaySec=1h\n[Install]\nWantedBy=timers.target\n' > "$u/sunshine-backup.timer"
+          systemctl --user daemon-reload; systemctl --user enable --now sunshine-backup.timer && ok "$(loc "daily backup is on")";;
+      off) systemctl --user disable --now sunshine-backup.timer 2>/dev/null; ok "$(loc "daily backup is off")";;
+      *) echo "usage: sunshine-backup schedule on|off";; esac ;;
+  *) sed -n 2,13p "$0"; exit 2 ;;
+esac

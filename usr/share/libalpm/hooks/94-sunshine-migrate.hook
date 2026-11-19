@@ -1,0 +1,10 @@
+[Trigger]
+Type = Package
+Operation = Install
+Operation = Upgrade
+Target = sunshine-base
+
+[Action]
+Description = Applying Sunshine OS migrations...
+When = PostTransaction
+Exec = /usr/local/bin/sunshine-migrate

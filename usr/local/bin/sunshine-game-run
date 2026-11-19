@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Starts a game with the "performance" power profile for as long as it runs (after CachyOS's game-performance), plus Gamemode and an optional
+# overlay. Steam: Properties > Launch options > `sunshine-game-run %command%`; MangoHud too: `sunshine-game-run --hud %command%`.
+hud=0; [ "${1:-}" = --hud ] && { hud=1; shift; }
+[ $# -gt 0 ] || { sed -n 2,3p "$0"; exit 2; }
+cmd=("$@")
+[ $hud = 1 ] && command -v mangohud >/dev/null && cmd=(mangohud "${cmd[@]}")
+command -v gamemoderun >/dev/null && cmd=(gamemoderun "${cmd[@]}")
+if command -v powerprofilesctl >/dev/null && powerprofilesctl list 2>/dev/null | grep -q 'performance:'; then
+  exec systemd-inhibit --why "Sunshine OS game run" powerprofilesctl launch -p performance -r "Sunshine OS game run" -- "${cmd[@]}"
+fi
+exec "${cmd[@]}"

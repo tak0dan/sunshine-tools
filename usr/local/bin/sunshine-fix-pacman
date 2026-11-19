@@ -19,6 +19,16 @@ sec "pacman.conf"
 if grep -q '^\[core\]' /etc/pacman.conf && grep -q '^\[extra\]' /etc/pacman.conf; then ok "pacman.conf has core and extra"
 elif [ -f /etc/pacman.conf.pacnew ]; then cp /etc/pacman.conf /etc/pacman.conf.broken && cp /etc/pacman.conf.pacnew /etc/pacman.conf && ok "core/extra were missing: restored the packaged pacman.conf (old one kept as pacman.conf.broken)"
 else fail "core/extra are missing from /etc/pacman.conf and there is no packaged copy to restore"; fi
+# repositories that no longer exist or are unstable break every sync ([community] was merged into [extra] in 2024; testing/staging are for packagers)
+for r in community community-testing testing core-testing extra-testing multilib-testing staging kde-unstable gnome-unstable; do
+  if grep -q "^\[$r\]" /etc/pacman.conf; then
+    cp -n /etc/pacman.conf /etc/pacman.conf.sunshine-backup
+    sed -i "/^\[$r\]/,/^\[/{/^\[$r\]/d;/^\[/!d}" /etc/pacman.conf
+    sed -i '/^\[$/d' /etc/pacman.conf
+    ok "removed the obsolete or unstable repository [$r] (backup: pacman.conf.sunshine-backup)"
+  fi
+done
+command -v faillock >/dev/null && for u in $(awk -F: '$3>=1000 && $3<60000{print $1}' /etc/passwd); do faillock --user "$u" 2>/dev/null | grep -q '^[0-9]' && faillock --user "$u" --reset && ok "login lock of $u cleared"; done
 grep -q '^ParallelDownloads' /etc/pacman.conf || sed -i 's/^#ParallelDownloads.*/ParallelDownloads = 5/' /etc/pacman.conf
 
 sec "$(t repair_keyring 'Keyring')"           # garuda-update: reset the keyring when it is broken

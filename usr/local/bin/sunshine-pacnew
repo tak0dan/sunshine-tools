@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Config updates left by pacman (*.pacnew, *.pacsave), handled safely (after EndeavourOS's eos-pacdiff and pacman's pacdiff).
+#   sunshine-pacnew list             what is waiting
+#   sunshine-pacnew auto             only the safe cases: a .pacnew identical to your file is removed; a .pacnew for a file you never changed
+#                                    (your file equals the version in the package cache) replaces it. Everything else is left for you.
+#   sunshine-pacnew review           one file at a time: see the difference, then keep yours, take the new one, or open both in a merge tool
+# Your old file is always kept as FILE.sunshine-old before anything is replaced. Files like /etc/passwd, shadow, group, sudoers are never touched automatically.
+[ "$(id -u)" -eq 0 ] || exec sudo "$0" "$@"
+[ -r /usr/local/lib/sunshine/ui.sh ] && . /usr/local/lib/sunshine/ui.sh || { sec() { echo "* $*"; }; ok() { echo "+ $*"; }; bad() { echo "x $*"; }; loc() { printf '%s' "$*"; }; Y=; G=; R=; B=; N=; }
+NEVER='^/etc/(passwd|shadow|group|gshadow|sudoers|fstab|crypttab|machine-id|hostname)(\.|$)'
+files() { find /etc -xdev \( -name '*.pacnew' -o -name '*.pacsave' \) 2>/dev/null | sort; }
+orig_of() { local f=$1; echo "${f%.pacnew}"; }
+pristine() {   # is the installed file still the one the package shipped? compare with the file in the newest cached package of its owner
+  local cur=$1 own pkg tmp rc=1
+  own=$(pacman -Qoq "$cur" 2>/dev/null) || return 1
+  pkg=$(ls -t /var/cache/pacman/pkg/"$own"-[0-9]*.pkg.tar.* 2>/dev/null | grep -v '\.sig$' | sed -n 2p)   # the second newest = the version that was installed before this update
+  [ -n "$pkg" ] || return 1
+  tmp=$(mktemp); bsdtar -xOf "$pkg" "${cur#/}" > "$tmp" 2>/dev/null && cmp -s "$tmp" "$cur" && rc=0
+  rm -f "$tmp"; return $rc
+}
+case "${1:-list}" in
+  list)
+    n=0; while read -r f; do [ -n "$f" ] || continue; n=$((n+1)); echo "  $f"; done < <(files)
+    [ $n = 0 ] && ok "$(loc "no pending config updates")" || echo "$n $(loc "waiting: sunshine-pacnew auto, then sunshine-pacnew review")" ;;
+  auto)
+    done_n=0; left=0
+    while read -r f; do
+      [ -n "$f" ] || continue; case "$f" in *.pacsave) left=$((left+1)); continue;; esac
+      o=$(orig_of "$f"); [[ "$o" =~ $NEVER ]] && { left=$((left+1)); continue; }
+      if [ ! -e "$o" ] || cmp -s "$f" "$o"; then rm -f "$f"; ok "$o: $(loc "identical, update file removed")"; done_n=$((done_n+1))
+      elif pristine "$o"; then cp -a "$o" "$o.sunshine-old" && mv -f "$f" "$o" && ok "$o: $(loc "you never changed it: replaced by the new version")"; done_n=$((done_n+1))
+      else left=$((left+1)); fi
+    done < <(files)
+    echo "$(loc "handled"): $done_n, $(loc "left for you"): $left" ;;
+  review)
+    [ -t 0 ] || { bad "$(loc "review needs a terminal")"; exit 1; }
+    while read -r f; do
+      [ -n "$f" ] || continue; case "$f" in *.pacsave) continue;; esac
+      o=$(orig_of "$f"); [[ "$o" =~ $NEVER ]] && { echo "$(loc "skipping (never merged automatically)"): $o"; continue; }
+      cmp -s "$f" "$o" 2>/dev/null && { rm -f "$f"; continue; }
+      sec "$o"; diff -u --color=always "$o" "$f" | head -80
+      read -rp "[k] $(loc "keep mine")  [n] $(loc "take new")  [m] $(loc "merge in a tool")  [s] $(loc "skip") > " a </dev/tty
+      case "$a" in
+        k) rm -f "$f"; ok "$(loc "kept"): $o";;
+        n) cp -a "$o" "$o.sunshine-old" 2>/dev/null; mv -f "$f" "$o"; ok "$(loc "replaced"): $o";;
+        m) for t in kdiff3 meld vimdiff; do command -v $t >/dev/null && { cp -a "$o" "$o.sunshine-old"; $t "$o" "$f"; break; }; done;;
+        *) ;;
+      esac
+    done < <(files) ;;
+  *) sed -n 2,8p "$0"; exit 2 ;;
+esac

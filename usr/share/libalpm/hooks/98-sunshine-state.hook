@@ -1,0 +1,18 @@
+[Trigger]
+Type = Package
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Target = *
+
+[Trigger]
+Type = Path
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Target = usr/lib/modules/*/vmlinuz
+
+[Action]
+Description = Recording the update state for sunshine-doctor...
+When = PostTransaction
+Exec = /usr/local/bin/sunshine-state-hook

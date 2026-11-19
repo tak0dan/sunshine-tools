@@ -24,6 +24,7 @@ add qtile      "qtile python-psutil alacritty rofi"                             
 add bspwm      "bspwm sxhkd polybar rofi alacritty feh picom"                                    "bspwm: tiling by binary space partitioning"       bspwm
 add awesome    "awesome vicious alacritty rofi"                                                  "Awesome: highly configurable tiling"              awesome
 [ "$(id -u)" -eq 0 ] || exec sudo "$0" "$@"
+# shellcheck disable=SC2034 # fallback colour names mirror ui.sh even when one is unused here
 [ -r /usr/local/lib/sunshine/ui.sh ] && . /usr/local/lib/sunshine/ui.sh || { sec() { echo "* $*"; }; ok() { echo "+ $*"; }; bad() { echo "x $*"; }; loc() { printf '%s' "$*"; }; Y=; G=; R=; B=; N=; }
 names=(kde gnome xfce cinnamon mate budgie lxqt cosmic i3 sway hyprland niri openbox qtile bspwm awesome)
 have_session() { ls /usr/share/xsessions/"$1"*.desktop /usr/share/wayland-sessions/"$1"*.desktop >/dev/null 2>&1; }

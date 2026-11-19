@@ -122,3 +122,185 @@ Show this window at startup	Показувати це вікно під час �
 Close	Закрити
 You are running the live session. Nothing is changed on your computer until you install.	Ви працюєте в живому сеансі. Нічого на вашому комп'ютері не змінюється, доки ви не встановите систему.
 Everything is up to date ☀	Усе актуально ☀
+Sunshine tools	Інструменти Sunshine
+Package keyring is current	Ключі пакунків актуальні
+Final health check	Остаточна перевірка стану
+Less than 1.5 GB is free on the system disk: the update could fail halfway. Free some space first (sunshine-cleanup).	На системному диску вільно менше 1,5 ГБ: оновлення може обірватися. Спершу звільніть місце (sunshine-cleanup).
+installed tools version	встановлена версія інструментів
+repository offers	у сховищі доступно
+tools are up to date	інструменти актуальні
+tools updated	інструменти оновлено
+files changed	файлів змінено
+refused	відхилено
+the manifest signature is not valid: refusing this release	підпис маніфесту недійсний: цей випуск відхилено
+tools repository not reachable: keeping the installed tools	сховище інструментів недоступне: лишаю встановлені
+previous tools put back	попередні інструменти повернено
+No installed Linux system was found.	Встановленої системи Linux не знайдено.
+No installed Linux system was found. If the disk is encrypted, run this in a terminal or set SUNSHINE_LUKS_PASS.	Встановленої системи Linux не знайдено. Якщо диск зашифровано, запустіть у терміналі або задайте SUNSHINE_LUKS_PASS.
+Repair everything (recommended)	Виправити все (рекомендовано)
+Reinstall the boot loader	Перевстановити завантажувач
+Rebuild the initramfs	Перебудувати initramfs
+Reset a user password	Скинути пароль користувача
+Check the file system	Перевірити файлову систему
+Open a shell inside the installed system	Відкрити термінал усередині встановленої системи
+Quit	Вийти
+User name: 	Ім’я користувача: 
+Which one? number: 	Яку саме? номер: 
+mounted at	змонтовано в
+Package database	База даних пакунків
+Kernel and initramfs	Ядро та initramfs
+Boot loader	Завантажувач
+Sunshine doctor	Лікар Sunshine
+package database is consistent	база пакунків узгоджена
+the package database is damaged	базу пакунків пошкоджено
+keyring recreated	ключі створено заново
+initramfs rebuilt for every kernel	initramfs перебудовано для кожного ядра
+boot menu rebuilt	меню завантаження перебудовано
+every fstab entry points to an existing partition	кожен запис fstab вказує на наявний розділ
+file system is clean or was repaired	файлову систему перевірено або виправлено
+Repair finished. Restart and remove the live medium.	Відновлення завершено. Перезавантажте комп’ютер і вийміть живий носій.
+You are inside the installed system. Type exit to leave.	Ви всередині встановленої системи. Введіть exit, щоб вийти.
+Installed kernels	Встановлені ядра
+running now	працює зараз
+Default boot entry	Запис завантаження за замовчуванням
+Kernels in the enabled repositories	Ядра в увімкнених сховищах
+that is the last kernel; the system would not boot	це останнє ядро; система не завантажилась би
+this is the running kernel: boot another one first	це працююче ядро: спершу завантажтеся з іншого
+Hardware	Обладнання
+Would install	Буде встановлено
+Everything this computer needs is already installed.	Усе потрібне для цього комп’ютера вже встановлено.
+Drivers installed.	Драйвери встановлено.
+Restart to use the NVIDIA driver.	Перезавантажте, щоб використовувати драйвер NVIDIA.
+Graphics	Графіка
+Gaming software	Ігрове програмне забезпечення
+Tuning for games	Налаштування для ігор
+Desktops and window managers	Робочі середовища та віконні менеджери
+is already installed	уже встановлено
+installed: pick it at the login screen (the session menu)	встановлено: оберіть його на екрані входу (меню сеансу)
+performance numbers	показники продуктивності
+profile is on	профіль увімкнено
+profile removed (zram swap and the installed packages stay)	профіль вимкнено (zram-своп і встановлені пакунки залишаються)
+available	доступно
+not in the enabled repositories	немає в увімкнених сховищах
+Install the system first; this tool works on the installed system.	Спершу встановіть систему; цей інструмент працює на встановленій системі.
+not available in the enabled repositories	недоступно в увімкнених сховищах
+restore point made	точку відновлення створено
+installed, but no session file appeared	встановлено, але файл сеансу не з'явився
+No login screen is enabled: sudo systemctl enable sddm	Екран входу не увімкнено: sudo systemctl enable sddm
+usage: sunshine-desktops remove NAME	використання: sunshine-desktops remove NAME
+Plasma is the default desktop and stays	Plasma — типове робоче середовище, і воно залишиться
+some of it is still needed by other packages	частина ще потрібна іншим пакункам
+usage: sunshine-desktops default NAME	використання: sunshine-desktops default NAME
+the login screen starts with	екран входу запускає
+Run this on the installed system.	Запускайте це на встановленій системі.
+laptop	ноутбук
+virtual machine	віртуальна машина
+Installing	Встановлення
+installation failed	встановлення не вдалося
+pacman.conf	pacman.conf
+pacman.conf has core and extra	у pacman.conf є core та extra
+core/extra were missing: restored the packaged pacman.conf (old one kept as pacman.conf.broken)	core/extra були відсутні: відновлено pacman.conf з пакунка (старий збережено як pacman.conf.broken)
+mirrors ranked (rate-mirrors)	дзеркала впорядковано (rate-mirrors)
+mirrors ranked (reflector)	дзеркала впорядковано (reflector)
+mirror ranking was not possible (no tool, or no network): keeping the current list	не вдалося впорядкувати дзеркала (немає інструмента або мережі): залишаю поточний список
+no usable mirror: restored the backup / added the Arch geo mirror	немає придатного дзеркала: відновлено резервну копію / додано геодзеркало Arch
+package databases synchronised	бази даних пакунків синхронізовано
+archlinux-keyring is current	archlinux-keyring актуальний
+no AUR helper installed (paru-bin is in the [sunshine] repository: sudo pacman -S paru-bin)	помічник AUR не встановлено (paru-bin є в репозиторії [sunshine]: sudo pacman -S paru-bin)
+some packages failed to install	деякі пакунки не вдалося встановити
+not in the enabled repositories (skipped)	немає в увімкнених сховищах (пропущено)
+map count raised (needed by many Proton games), split-lock penalty off	max_map_count збільшено (потрібно багатьом іграм Proton), штраф split-lock вимкнено
+is in the gamemode group (log out and in)	додано до групи gamemode (вийдіть із системи та увійдіть знову)
+ananicy-cpp	ananicy-cpp
+More tuning: sunshine-performance on	Більше налаштувань: sunshine-performance on
+too low for some games: sunshine-gaming tune	замало для деяких ігор: sunshine-gaming tune
+is not enabled	не увімкнено
+multilib	multilib
+packages for it	пакунки для нього
+multilib could not be enabled in /etc/pacman.conf	не вдалося увімкнути multilib у /etc/pacman.conf
+Graphics drivers	Драйвери графіки
+Games	Ігри
+Gaming setup done. Open Steam, then Settings > Compatibility > enable Steam Play for all titles. Launch options: sunshine-game-run --hud %command%	Ігрові налаштування завершено. Відкрийте Steam, потім Налаштування > Сумісність і ввімкніть Steam Play для всіх ігор. Параметри запуску: sunshine-game-run --hud %command%
+Run this on the installed system (kernels of the live session are not managed).	Запускайте це на встановленій системі (ядра живого сеансу не керуються).
+no GRUB here: the boot loader menu was not rebuilt	тут немає GRUB: меню завантажувача не перебудовано
+installed	встановлено
+is not a kernel package name this tool manages	не є назвою пакунка ядра, яким керує цей інструмент
+is not in any enabled repository (try: sunshine-update, or enable Chaotic-AUR for the CachyOS kernels)	немає в жодному з увімкнених сховищ (спробуйте sunshine-update або увімкніть Chaotic-AUR для ядер CachyOS)
+installation failed; nothing was changed in the boot menu	встановлення не вдалося; у меню завантаження нічого не змінено
+is missing	відсутній
+installed; choose it in the boot menu, or make it the default with: sunshine-kernel default	встановлено; оберіть його в меню завантаження або зробіть типовим командою: sunshine-kernel default
+is not installed	не встановлено
+removed	видалено
+no boot entry found for	не знайдено запису завантаження для
+default boot entry	запис завантаження за замовчуванням
+initramfs rebuilt	initramfs перебудовано
+will run again	буде запущено знову
+migrations applied	виконано міграцій
+Memory and swap	Пам'ять і своп
+kernel settings applied (swap tuned for zram, bigger map count for games, BBR network)	налаштування ядра застосовано (своп налаштовано для zram, збільшено max_map_count для ігор, мережа BBR)
+earlyoom keeps the desktop alive when memory runs out	earlyoom не дає робочому столу зависнути, коли закінчується пам'ять
+earlyoom could not be installed (offline?): skipped	не вдалося встановити earlyoom (немає мережі?): пропущено
+Disk	Диск
+weekly TRIM for SSDs	щотижневий TRIM для SSD
+journal capped, quick service stop, builds and package compression use all cores	журнал обмежено, служби зупиняються швидше, збирання й стискання пакунків використовують усі ядра
+watchdogs off, NTSync for Wine, writeback caps for USB sticks and HDDs, sane time servers	watchdog вимкнено, NTSync для Wine, обмежено відкладений запис для USB-флешок і HDD, надійні сервери часу
+ananicy-cpp gives games and the desktop priority over background work	ananicy-cpp дає іграм і робочому столу пріоритет над фоновими задачами
+ananicy-cpp is not in the enabled repositories (Chaotic-AUR has it): skipped	ananicy-cpp немає в увімкнених сховищах (є в Chaotic-AUR): пропущено
+A restart applies everything; check the numbers with: sunshine-performance bench	Усе набуде чинності після перезавантаження; перевірте показники командою: sunshine-performance bench
+keyring could not be recreated	не вдалося створити ключі пакунків заново
+restored	відновлено
+No kernel is installed in that system: installing linux	У цій системі не встановлено ядро: встановлюю linux
+kernel installed	ядро встановлено
+the kernel could not be installed (no network?)	не вдалося встановити ядро (немає мережі?)
+mkinitcpio failed; see	mkinitcpio завершився з помилкою; див.
+fstab	fstab
+missing UUID	немає UUID
+missing label	немає мітки
+fstab entries do not match the partitions: fix with: sunshine-rescue chroot, then nano /etc/fstab	записи fstab не відповідають розділам; виправте так: sunshine-rescue chroot, потім nano /etc/fstab
+the EFI partition of the installed system is not mounted (is it in its fstab?)	розділ EFI встановленої системи не змонтовано (чи є він у її fstab?)
+NVRAM entry could not be written (continuing with the fallback path)	не вдалося додати запис до NVRAM (продовжуємо запасним шляхом)
+installed on	встановлено на
+cannot find the boot disk	не вдалося знайти завантажувальний диск
+sunshine-doctor is not installed in that system	sunshine-doctor не встановлено в цій системі
+btrfs is consistent	btrfs у порядку
+btrfs reports problems; see	btrfs повідомляє про проблеми; див.
+btrfs check --repair is a last resort: copy your data first	btrfs check --repair — крайній захід: спершу скопіюйте свої дані
+is consistent	у порядку
+no checker for	немає засобу перевірки для
+no such user in the installed system	у встановленій системі немає такого користувача
+password changed for	пароль змінено для
+unmounted	відмонтовано
+step(s) failed; the log is	крок(ів) не вдалося; журнал:
+missing tool	немає потрібної програми
+could not be opened (wrong passphrase?)	не вдалося відкрити (можливо, неправильна парольна фраза?)
+is encrypted	зашифровано
+is not an installed system	не є встановленою системою
+Several systems found; name one: sunshine-rescue repair /dev/...	Знайдено кілька систем; укажіть одну: sunshine-rescue repair /dev/...
+could not mount	не вдалося змонтувати
+repository: not reachable (offline?)	сховище недоступне (немає мережі?)
+could not download the manifest	не вдалося завантажити маніфест
+could not download the tools archive	не вдалося завантажити архів інструментів
+the archive is damaged	архів пошкоджено
+refused (outside the Sunshine paths)	відхилено (поза шляхами Sunshine)
+missing in the archive	немає в архіві
+checksum mismatch, refused	контрольна сума не збігається, відхилено
+nothing to roll back	немає що відкотити
+no manifest: tools were never synced (they come from the image)	немає маніфесту: інструменти ніколи не синхронізувалися (вони походять з образу)
+differs	відрізняється
+every tool matches the manifest	кожен інструмент відповідає маніфесту
+Tidying up	Прибирання
+Old package cache cleaned	Старий кеш пакунків очищено
+Config updates waiting for review (*.pacnew):	Зміни конфігурації, що чекають на перегляд (*.pacnew):
+Apps you chose	Обрані вами програми
+Health check	Перевірка здоров'я
+A stale lock file was found (no package manager is running); removing it.	Знайдено застарілий файл блокування (менеджер пакунків не працює); видаляю його.
+Restore points are made automatically before and after the update (go back from the boot menu if anything breaks)	Точки відновлення створюються автоматично до й після оновлення (якщо щось зламається, поверніться з меню завантаження)
+System identity restored	Ідентичність системи відновлено
+Refreshing the mirror list	Оновлення списку дзеркал
+rate-mirrors is not installed yet (it is installed after this update and used next time): keeping the current list	rate-mirrors ще не встановлено (його буде встановлено після цього оновлення, а використано наступного разу): залишаю поточний список
+New repository added: updating again	Додано нове сховище: оновлюю ще раз
+The system update did not finish. Nothing is broken by stopping; you can run the update again.	Оновлення системи не завершилося. Зупинка нічого не зламала; можете запустити оновлення ще раз.
+Declarative setup (Sirius)	Декларативне налаштування (Sirius)
+Nix packages are up to date	Пакунки Nix актуальні
+Updating Flatpak apps	Оновлення програм Flatpak
+Updating AUR (community) packages	Оновлення пакунків AUR (спільноти)

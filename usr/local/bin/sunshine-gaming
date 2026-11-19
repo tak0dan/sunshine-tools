@@ -64,7 +64,7 @@ case "${1:-status}" in
       install_list lutris wine-staging winetricks gamescope goverlay lib32-gnutls lib32-sdl2 protonup-qt heroic-games-launcher-bin proton-ge-custom-bin
     fi
     tune
-    ok "$(loc "Gaming setup done. Open Steam, then Settings > Compatibility > enable Steam Play for all titles. Launch options: gamemoderun mangohud %command%")"
+    ok "$(loc "Gaming setup done. Open Steam, then Settings > Compatibility > enable Steam Play for all titles. Launch options: sunshine-game-run --hud %command%")"
     ;;
   *) sed -n 2,8p "$0"; exit 2 ;;
 esac

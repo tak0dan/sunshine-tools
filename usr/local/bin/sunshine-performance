@@ -14,7 +14,12 @@ F_TIMEOUT=/etc/systemd/system.conf.d/50-sunshine-timeouts.conf
 F_MAKEPKG=/etc/makepkg.conf.d/sunshine.conf
 F_ZRAM=/etc/systemd/zram-generator.conf
 F_CORE=/etc/systemd/coredump.conf.d/50-sunshine.conf
-mem_gb=$(awk '/MemTotal/{printf "%d", $2/1048576+0.5}' /proc/meminfo)
+F_WDT=/etc/modprobe.d/sunshine-no-watchdog.conf
+F_THP=/etc/tmpfiles.d/sunshine-thp.conf
+F_WB=/etc/udev/rules.d/61-sunshine-writeback.rules
+F_NTSYNC=/etc/modules-load.d/sunshine-ntsync.conf
+F_NOFILE=/etc/systemd/system.conf.d/60-sunshine-limits.conf
+F_NTP=/etc/systemd/timesyncd.conf.d/10-sunshine.conf
 
 on() {
   sec "Memory and swap"
@@ -58,14 +63,33 @@ EOF
   # builds use every core, packages are compressed with every core
   printf 'MAKEFLAGS="-j%s"\nCOMPRESSZST=(zstd -c -T0 --auto-threads=logical -)\n' "$(nproc)" > "$F_MAKEPKG"
   [ -d /etc/makepkg.conf.d ] && grep -q 'makepkg.conf.d' /etc/makepkg.conf 2>/dev/null || true
+  # ideas from CachyOS-Settings
+  printf 'blacklist iTCO_wdt\nblacklist sp5100_tco\nblacklist wdat_wdt\n' > "$F_WDT"                      # hardware watchdogs only slow down shutdown
+  printf 'w! /sys/kernel/mm/transparent_hugepage/defrag - - - - defer+madvise\n' > "$F_THP"; systemd-tmpfiles --create "$F_THP" >/dev/null 2>&1
+  [ -e /sys/module/ntsync ] || modinfo ntsync >/dev/null 2>&1 && echo ntsync > "$F_NTSYNC"                    # Wine/Proton NT synchronisation in the kernel
+  mkdir -p "$(dirname "$F_NOFILE")" "$(dirname "$F_NTP")"
+  printf '[Manager]\nDefaultLimitNOFILE=2048:2097152\n' > "$F_NOFILE"
+  printf '[Time]\nNTP=time.cloudflare.com\nFallbackNTP=time.google.com 0.arch.pool.ntp.org 1.arch.pool.ntp.org 2.arch.pool.ntp.org\n' > "$F_NTP"
+  # a copy to a USB stick or an HDD must not "finish" instantly into RAM and then freeze the unmount for minutes: cap the dirty data per slow device
+  cat > "$F_WB" <<'EOT'
+ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ATTR{removable}=="1", ATTR{bdi/strict_limit}="1", ATTR{bdi/max_bytes}="268435456"
+ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", KERNEL=="sd[a-z]*", ATTR{queue/rotational}=="1", ATTR{bdi/strict_limit}="1", ATTR{bdi/max_bytes}="1073741824"
+ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", KERNEL=="mmcblk[0-9]*", ATTR{bdi/strict_limit}="1", ATTR{bdi/max_bytes}="268435456"
+EOT
+  # zram is cheaper than disk: prefer swapping anonymous pages (swappiness above 100 is allowed since kernel 5.8) and keep zswap out of its way
+  cat > /etc/udev/rules.d/30-sunshine-zram.rules <<'EOT'
+ACTION=="change", KERNEL=="zram0", ATTR{initstate}=="1", SYSCTL{vm.swappiness}="150", RUN+="/bin/sh -c 'echo N > /sys/module/zswap/parameters/enabled'"
+EOT
   ok "$(loc "journal capped, quick service stop, builds and package compression use all cores")"
+  ok "$(loc "watchdogs off, NTSync for Wine, writeback caps for USB sticks and HDDs, sane time servers")"
   if pacman -Si ananicy-cpp >/dev/null 2>&1; then
+    # shellcheck disable=SC2046 # intentionally empty when the optional rules package is absent
     pacman -S --noconfirm --needed ananicy-cpp $(pacman -Si cachyos-ananicy-rules >/dev/null 2>&1 && echo cachyos-ananicy-rules) >/dev/null 2>&1 && systemctl enable --now ananicy-cpp.service >/dev/null 2>&1 && ok "$(loc "ananicy-cpp gives games and the desktop priority over background work")"
   else echo "$(loc "ananicy-cpp is not in the enabled repositories (Chaotic-AUR has it): skipped")"; fi
   ok "$(loc "profile is on")"; echo "$(loc "A restart applies everything; check the numbers with: sunshine-performance bench")"
 }
 off() {
-  rm -f "$F_SYSCTL" "$F_UDEV" "$F_JOURNAL" "$F_TIMEOUT" "$F_MAKEPKG" "$F_CORE" /etc/modules-load.d/sunshine-bbr.conf
+  rm -f "$F_SYSCTL" "$F_UDEV" "$F_JOURNAL" "$F_TIMEOUT" "$F_MAKEPKG" "$F_CORE" "$F_WDT" "$F_THP" "$F_WB" "$F_NTSYNC" "$F_NOFILE" "$F_NTP" /etc/udev/rules.d/30-sunshine-zram.rules /etc/modules-load.d/sunshine-bbr.conf
   sed -i '/^# SUNSHINE$/,$d' /etc/default/earlyoom 2>/dev/null
   systemctl disable --now earlyoom.service ananicy-cpp.service >/dev/null 2>&1
   sysctl --system >/dev/null 2>&1; udevadm control --reload >/dev/null 2>&1

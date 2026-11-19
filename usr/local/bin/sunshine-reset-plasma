@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Puts the desktop back to the Sunshine OS defaults when it looks broken (a theme that went wrong, missing icons, a panel that vanished, a crash loop)
+# without touching your files or applications. Your current settings are moved to ~/.config/sunshine-backup/DATE first, so nothing is lost.
+#   sunshine-reset-plasma         reset the desktop settings of the user who runs it, then restart the desktop shell
+#   sunshine-reset-plasma --undo  put the newest backup back
+# Run it from a terminal (Konsole, or Ctrl+Alt+F3 when the desktop does not start).
+[ "$(id -u)" -ne 0 ] || { echo "Run this as your normal user, not root."; exit 1; }
+[ -r /usr/local/lib/sunshine/ui.sh ] && . /usr/local/lib/sunshine/ui.sh || { ok() { echo "+ $*"; }; bad() { echo "x $*"; }; sec() { echo "* $*"; }; loc() { printf '%s' "$*"; }; }
+C=$HOME/.config; B=$C/sunshine-backup
+FILES="plasma-org.kde.plasma.desktop-appletsrc plasmashellrc plasmarc kwinrc kwinrulesrc kdeglobals kglobalshortcutsrc kscreenlockerrc ksplashrc kded5rc kdedefaults gtk-3.0 gtk-4.0 Kvantum kando"
+if [ "${1:-}" = --undo ]; then
+  last=$(ls -1d "$B"/* 2>/dev/null | tail -1); [ -n "$last" ] || { bad "$(loc "no backup found")"; exit 1; }
+  for f in $FILES; do [ -e "$last/$f" ] && { rm -rf "${C:?}/$f"; cp -a "$last/$f" "$C/$f"; }; done
+  ok "$(loc "settings from") $(basename "$last") $(loc "restored")"
+  systemctl --user restart plasma-plasmashell.service 2>/dev/null; exit 0
+fi
+d=$B/$(date +%Y%m%d-%H%M%S); mkdir -p "$d"
+sec "$(loc "Saving your current settings")"
+for f in $FILES; do [ -e "$C/$f" ] && mv "$C/$f" "$d/$f"; done
+ok "$(loc "saved in") $d"
+sec "$(loc "Putting the Sunshine OS defaults back")"
+for f in $FILES; do [ -e "/etc/skel/.config/$f" ] && cp -a "/etc/skel/.config/$f" "$C/$f"; done
+if command -v sunshine-plasma-setup >/dev/null; then sunshine-plasma-setup --reapply >/dev/null 2>&1 && ok "$(loc "panels, theme and shortcuts re-applied")"; fi
+command -v sunshine-topbar >/dev/null && { sleep 3; sunshine-topbar --force >/dev/null 2>&1; }
+systemctl --user restart plasma-plasmashell.service 2>/dev/null
+ok "$(loc "Done. If something is still wrong, log out and in again. To go back: sunshine-reset-plasma --undo")"

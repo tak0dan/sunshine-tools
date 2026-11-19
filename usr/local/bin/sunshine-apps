@@ -59,6 +59,11 @@ case "$cmd" in
   first-update)
     # never in the live session: LibreOffice and the rest would fill the 1 GiB RAM overlay and vanish at the next boot
     [ -d /run/archiso ] && { echo "live session: the first-update apps are installed on the installed system"; exit 0; }
+    [ -x /usr/local/bin/sunshine-migrate ] && /usr/local/bin/sunshine-migrate run >>"$LOG" 2>&1
+    # hardware drivers first (NVIDIA, Wi-Fi, laptop helpers), once, when the network is there; never blocks the apps below
+    if [ -x /usr/local/bin/sunshine-drivers ] && [ ! -e /var/lib/sunshine/drivers-done ] && online; then
+      /usr/local/bin/sunshine-drivers auto >>"$LOG" 2>&1; touch /var/lib/sunshine/drivers-done; log "hardware drivers checked (sunshine-drivers detect shows what was found)"
+    fi
     [ -e /var/lib/sunshine/first-update-done ] && { echo "first-update apps were already handled"; exit 0; }
     ids=$(python3 - <<'PY'
 import tomllib,pathlib

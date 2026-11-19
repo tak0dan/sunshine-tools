@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Collects what a helper needs to understand a problem, into one file you can attach to a support request or a forum post. Nothing is uploaded:
+# you decide who gets it. Personal data is removed before it is written: your user name, the computer name, IP and MAC addresses, Wi-Fi network
+# names, serial numbers, e-mail addresses. Read the file before you send it (it is plain text).
+#   sunshine-support            write ~/Sunshine-Support/support-DATE.txt (needs your password once for the system logs)
+#   sunshine-support --print    show it on screen instead
+OUT=$HOME/Sunshine-Support; mkdir -p "$OUT"; F=$OUT/support-$(date +%Y-%m-%d_%H%M%S).txt
+SUDO=; [ "$(id -u)" -ne 0 ] && SUDO=sudo
+U=$(id -un); H=$(hostname)
+clean() {   # remove personal data from stdin
+  sed -E "s#/home/$U#/home/USER#g; s#\\b$U\\b#USER#g; s#\\b$H\\b#HOSTNAME#g;
+          s#([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}#MAC:XX#g;
+          s#\\b([0-9]{1,3}\\.){3}[0-9]{1,3}\\b#IP.X.X.X#g;
+          s#\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b#EMAIL#g;
+          s#([Ss]erial( [Nn]umber)?[:= ]+)[A-Za-z0-9_-]+#\\1SERIAL#g;
+          s#(ssid|SSID)[=: ]+.*#\\1=NETWORK#g"
+}
+{
+  sec() { printf '\n===== %s =====\n' "$*"; }
+  echo "Sunshine OS support report, $(date -u +%F\ %H:%M) UTC"
+  sec "System"; . /etc/os-release; echo "$PRETTY_NAME  ($(cat /etc/sunshine/edition 2>/dev/null || echo Sol))"
+  echo "kernel: $(uname -r)   uptime: $(uptime -p)   boot mode: $([ -d /sys/firmware/efi ] && echo UEFI || echo BIOS)   live: $([ -d /run/archiso ] && echo yes || echo no)"
+  echo "tools version: $(cat /var/lib/sunshine/tools-version 2>/dev/null || echo from-image)   sunshine-base: $(pacman -Q sunshine-base 2>/dev/null | cut -d' ' -f2)"
+  echo "desktop: ${XDG_CURRENT_DESKTOP:-?} / ${XDG_SESSION_TYPE:-?}   shell: $SHELL"
+  sec "Hardware"; lscpu | grep -E 'Model name|^CPU\(s\)|Vendor'; free -h | sed -n 1,2p; lspci -nn 2>/dev/null | grep -E 'VGA|3D|Network|Audio|Ethernet|Wireless'; lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINTS 2>/dev/null
+  sec "Boot parameters"; cat /proc/cmdline
+  sec "Doctor (check only)"; $SUDO sunshine-doctor 2>&1 | sed 's/\x1b\[[0-9;]*m//g'
+  sec "Drivers"; command -v sunshine-drivers >/dev/null && $SUDO sunshine-drivers detect 2>&1 | sed 's/\x1b\[[0-9;]*m//g'
+  sec "Kernels"; command -v sunshine-kernel >/dev/null && sunshine-kernel list 2>&1 | sed 's/\x1b\[[0-9;]*m//g'
+  sec "Failed services"; systemctl --failed --no-legend 2>/dev/null; systemctl --user --failed --no-legend 2>/dev/null
+  sec "Last package operations"; tail -40 /var/log/pacman.log 2>/dev/null
+  sec "Last update log"; tail -40 /var/log/sunshine/update.log 2>/dev/null | sed 's/\x1b\[[0-9;]*[A-Za-z]//g'
+  sec "Errors in this boot"; $SUDO journalctl -b -p 3 --no-pager 2>/dev/null | tail -60
+  sec "Previous boot errors"; $SUDO journalctl -b -1 -p 3 --no-pager 2>/dev/null | tail -30
+  sec "Pending config updates"; find /etc -name '*.pacnew' 2>/dev/null
+  sec "Disk"; df -hT -x tmpfs -x devtmpfs -x efivarfs 2>/dev/null
+  sec "Network (no addresses)"; nmcli -t -f TYPE,STATE device 2>/dev/null; resolvectl status 2>/dev/null | grep -E 'DNS Servers|Current DNS' | head -3
+} 2>&1 | clean > "$F"
+if [ "${1:-}" = --print ]; then cat "$F"; else echo "$F"; echo "Read it, then send it to whoever helps you (forum, chat, issue). Nothing was uploaded."; fi

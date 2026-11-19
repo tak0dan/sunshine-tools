@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# "Something does not work": checks one area, repairs what is safe to repair, and checks again. For ordinary users and for the first minute of a support request.
+#   sunshine-fix network     Wi-Fi/cable, DNS, NetworkManager, blocked radios
+#   sunshine-fix audio       PipeWire, WirePlumber, muted or missing output
+#   sunshine-fix display     monitors, saved screen layout, VRR/HDR information
+#   sunshine-fix gpu         driver in use, OpenGL/Vulkan, 32-bit Vulkan for Steam
+#   sunshine-fix storage     free space, inodes, disk health, safe cleanup
+#   sunshine-fix all         every area in turn
+# Nothing is deleted except caches that are rebuilt automatically; every repair says what it did.
+[ -r /usr/local/lib/sunshine/ui.sh ] && . /usr/local/lib/sunshine/ui.sh || { sec() { echo "* $*"; }; ok() { echo "+ $*"; }; bad() { echo "x $*"; }; loc() { printf '%s' "$*"; }; }
+SUDO=; [ "$(id -u)" -ne 0 ] && SUDO=sudo
+warn() { printf '  ! %s\n' "$(loc "$*")"; }
+fixed=0; fx() { fixed=$((fixed+1)); printf '  ↺ %s\n' "$(loc "$*")"; }
+
+fix_network() {
+  sec "Network"
+  command -v nmcli >/dev/null || { bad "NetworkManager is not installed"; return; }
+  systemctl is-active --quiet NetworkManager && ok "NetworkManager is running" || { bad "NetworkManager is not running"; $SUDO systemctl enable --now NetworkManager && fx "NetworkManager started"; }
+  if rfkill list 2>/dev/null | grep -q 'Soft blocked: yes'; then bad "a radio is blocked by software (airplane mode?)"; $SUDO rfkill unblock all && fx "radios unblocked"; else ok "no radio is blocked"; fi
+  [ "$(nmcli radio wifi 2>/dev/null)" = disabled ] && { bad "Wi-Fi is switched off"; nmcli radio wifi on && fx "Wi-Fi switched on"; }
+  if ! nmcli -t -f TYPE,STATE device 2>/dev/null | grep -qE '^(wifi|ethernet):connected'; then
+    warn "no active connection"
+    nmcli -t -f TYPE device 2>/dev/null | grep -q wifi || warn "no Wi-Fi adapter was found: some chips need a driver (sunshine-drivers detect)"
+    $SUDO systemctl restart NetworkManager; sleep 6
+  fi
+  gw=$(ip route 2>/dev/null | awk '/^default/{print $3; exit}')
+  if [ -n "$gw" ]; then ping -c1 -W2 "$gw" >/dev/null 2>&1 && ok "the router answers ($gw)" || warn "the router does not answer ($gw): check the cable or Wi-Fi signal"; else bad "no default route (not connected)"; return; fi
+  ping -c1 -W3 1.1.1.1 >/dev/null 2>&1 && ok "the internet is reachable" || { bad "no internet beyond the router"; return; }
+  if getent hosts archlinux.org >/dev/null 2>&1; then ok "names resolve (DNS works)"
+  else bad "DNS does not work"
+    [ -e /etc/resolv.conf ] || { $SUDO ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf && fx "DNS link restored"; }
+    $SUDO systemctl enable --now systemd-resolved >/dev/null 2>&1; $SUDO systemctl restart systemd-resolved; sleep 2
+    getent hosts archlinux.org >/dev/null 2>&1 && fx "DNS works again" || warn "DNS is still broken: try a public resolver: nmcli con mod <name> ipv4.dns 1.1.1.1"
+  fi
+  [ "$(nmcli networking connectivity check 2>/dev/null)" = portal ] && warn "a login page (captive portal) is blocking: open a browser"
+}
+fix_audio() {
+  sec "Audio"
+  for s in pipewire pipewire-pulse wireplumber; do
+    if systemctl --user is-active --quiet "$s" 2>/dev/null; then ok "$s is running"; else bad "$s is not running"; systemctl --user restart "$s" 2>/dev/null && fx "$s restarted"; fi
+  done
+  command -v wpctl >/dev/null || return
+  sleep 1
+  if wpctl status 2>/dev/null | sed -n '/Sinks:/,/Sources:/p' | grep -q '[0-9]\.'; then ok "an audio output exists"
+  else bad "no audio output device"; aplay -l 2>/dev/null | grep -q card || warn "the kernel sees no sound card: a sound firmware may be missing (sof-firmware) or the driver is not loaded"; fi
+  v=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null)
+  case "$v" in *MUTED*) bad "the output is muted"; wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 && fx "unmuted";; esac
+  if [ -n "$v" ]; then
+    printf '  %s\n' "$v"; vol=$(printf '%s' "$v" | awk '{print $2}')
+    awk -v x="$vol" 'BEGIN{exit !(x+0 < 0.05)}' && wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.5 && fx "the volume was almost zero: set to 50%"
+  fi
+}
+fix_display() {
+  sec "Display"
+  if command -v kscreen-doctor >/dev/null; then
+    kscreen-doctor -o 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | grep -E 'Output:|enabled|Modes|VRR|HDR|Scale' | sed 's/^/  /' | head -20
+    n=$(kscreen-doctor -o 2>/dev/null | grep -c 'Output:')
+    [ "$n" -gt 0 ] && ok "$n monitor(s) detected" || bad "no monitor detected by Plasma"
+    if [ -d "$HOME/.local/share/kscreen" ]; then
+      read -rp "$(loc "Reset the saved screen layout (fixes wrong resolution, a black second screen)? [y/N] ")" a </dev/tty 2>/dev/null
+      [ "${a,,}" = y ] && { mv "$HOME/.local/share/kscreen" "$HOME/.local/share/kscreen.sunshine-old.$(date +%s)" && fx "saved layout moved aside: log out and in again"; }
+    fi
+  else warn "kscreen-doctor is not available in this session"; fi
+}
+fix_gpu() {
+  sec "Graphics"
+  lspci -nn 2>/dev/null | grep -E 'VGA|3D|Display' | sed 's/^/  /'
+  for m in nvidia amdgpu i915 xe nouveau radeon vmwgfx virtio_gpu vboxvideo; do lsmod | grep -q "^$m " && echo "  driver loaded: $m"; done
+  if lspci -nn | grep -E 'VGA|3D' | grep -q '\[10de:'; then
+    lsmod | grep -q '^nvidia ' && ok "NVIDIA proprietary driver in use" || { bad "an NVIDIA card is present but the NVIDIA driver is not loaded"; warn "run: sudo sunshine-drivers install (then restart)"; }
+    lsmod | grep -q '^nouveau ' && warn "the open nouveau driver is in use: slower, no Vulkan for games"
+  fi
+  if command -v glxinfo >/dev/null; then r=$(glxinfo -B 2>/dev/null | awk -F': ' '/OpenGL renderer/{print $2}'); [ -n "$r" ] && { echo "  OpenGL: $r"; case "$r" in *llvmpipe*|*softpipe*) bad "software rendering: the graphics driver is not working";; *) ok "hardware OpenGL";; esac; }; fi
+  if command -v vulkaninfo >/dev/null; then v=$(vulkaninfo --summary 2>/dev/null | awk -F'= ' '/deviceName/{print $2; exit}'); [ -n "$v" ] && { ok "Vulkan: $v"; case "$v" in *llvmpipe*) warn "Vulkan runs on the CPU only";; esac; } || bad "Vulkan finds no device (games will not start with Proton)"; else warn "vulkaninfo is not installed (pacman -S vulkan-tools)"; fi
+  if pacman -Qq steam >/dev/null 2>&1; then
+    pacman -Qq lib32-vulkan-icd-loader >/dev/null 2>&1 && ok "32-bit Vulkan loader present (Steam)" || { bad "lib32-vulkan-icd-loader is missing: Steam games will not start"; warn "run: sunshine-gaming install"; }
+  fi
+}
+fix_storage() {
+  sec "Storage"
+  for m in / /home /boot; do mountpoint -q "$m" 2>/dev/null || continue
+    u=$(df --output=pcent "$m" | tail -1 | tr -dc 0-9); i=$(df --output=ipcent "$m" | tail -1 | tr -dc 0-9)
+    if [ "${u:-0}" -ge 90 ]; then bad "$m is ${u}% full"; elif [ "${u:-0}" -ge 80 ]; then warn "$m is ${u}% full"; else ok "$m ${u}% used"; fi
+    [ "${i:-0}" -ge 90 ] 2>/dev/null && bad "$m has used ${i}% of its inodes (too many small files)"
+  done
+  if command -v smartctl >/dev/null; then for d in $(lsblk -dno NAME,TYPE | awk '$2=="disk" && $1!~/^(zram|loop|sr)/{print $1}'); do
+    r=$($SUDO smartctl -H "/dev/$d" 2>/dev/null | grep -iE 'overall-health|SMART Health Status'); case "$r" in *PASSED*|*OK*) ok "disk $d: healthy";; *FAIL*) bad "disk $d reports FAILURE: back up now";; esac; done; fi
+  if [ "$(findmnt -no FSTYPE / 2>/dev/null)" = btrfs ]; then
+    echo "  $($SUDO btrfs filesystem usage -T / 2>/dev/null | grep -E 'Free \(estimated\)' | sed 's/^ *//')"
+  fi
+  du -sh "$HOME/.cache" 2>/dev/null | sed 's/^/  cache: /'
+  u=$(df --output=pcent / | tail -1 | tr -dc 0-9)
+  if [ "${u:-0}" -ge 80 ]; then
+    command -v paccache >/dev/null && $SUDO paccache -rqk1 && fx "old package files removed (the newest copy is kept)"
+    $SUDO journalctl --vacuum-size=200M >/dev/null 2>&1 && fx "system log trimmed to 200 MB"
+    [ -d "$HOME/.cache/thumbnails" ] && rm -rf "$HOME/.cache/thumbnails"/* && fx "thumbnail cache emptied (it rebuilds itself)"
+    command -v flatpak >/dev/null && flatpak list --unused 2>/dev/null | grep -q . && warn "unused Flatpak runtimes: flatpak uninstall --unused"
+  fi
+}
+case "${1:-}" in
+  network) fix_network;; audio) fix_audio;; display) fix_display;; gpu) fix_gpu;; storage) fix_storage;;
+  all) fix_network; fix_audio; fix_display; fix_gpu; fix_storage;;
+  *) sed -n 2,11p "$0"; exit 2;;
+esac
+echo; [ $fixed -gt 0 ] && echo "$(loc "repairs made"): $fixed" || echo "$(loc "nothing needed repairing")"

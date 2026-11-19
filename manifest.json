@@ -2,7 +2,11 @@
  "files": {
   "usr/local/bin/sunshine-apps": {
    "mode": "755",
-   "sha256": "877d18918d5966c583a41895d8e9faa977432e6e4a7be86f1096e04739614a07"
+   "sha256": "c3824a1786eead12cd4e28e7a8df25912fbcce4c6e70a8232a85a3d1329dd4a1"
+  },
+  "usr/local/bin/sunshine-backup": {
+   "mode": "755",
+   "sha256": "635146bf7d3bcc5a7aed301082979569862c422e21d5aa3355b89820e887356e"
   },
   "usr/local/bin/sunshine-boot-repair": {
    "mode": "755",
@@ -18,7 +22,7 @@
   },
   "usr/local/bin/sunshine-desktops": {
    "mode": "755",
-   "sha256": "09832b364f61087a1b5987771cab8154718a836b3d662d7d71b0e183e1a6131b"
+   "sha256": "5d3f60e80b698cdec1cb24940e23d37eee42c59620773705f275ab9b9214e5a8"
   },
   "usr/local/bin/sunshine-detect-location": {
    "mode": "755",
@@ -30,19 +34,31 @@
   },
   "usr/local/bin/sunshine-doctor": {
    "mode": "755",
-   "sha256": "3ff692827b73fa8eee0f500b77db5cb3e8d95a2da3651d642e756bc031ab2450"
+   "sha256": "7f159ee13eed801c29dab08e5da45f1de8f3c95f352208f0edbef955926e8183"
+  },
+  "usr/local/bin/sunshine-drivers": {
+   "mode": "755",
+   "sha256": "d664f088d13742636f9d8cf2cdac3c53eee1c1ae3d3b0d25e4a2952c177357c9"
   },
   "usr/local/bin/sunshine-fastfetch-patch": {
    "mode": "755",
    "sha256": "a67b09b49cc49f97d8be6bf09fa35fd963b1a7a3dc0caebc8c84c0b428573ef9"
   },
+  "usr/local/bin/sunshine-fix": {
+   "mode": "755",
+   "sha256": "aee2a5d86652d42421167ffd0b756d847d75d0d8670170ca0c3f6eb9bffd9a08"
+  },
   "usr/local/bin/sunshine-fix-pacman": {
    "mode": "755",
-   "sha256": "1d07cb30609fc895a5f482e9ba295707eb2e436cd30732ccb03583cc656844f4"
+   "sha256": "a53a8c788513da1fb98d6473662690267471a8f2fc270e8d30bff909aeeed5c6"
+  },
+  "usr/local/bin/sunshine-game-run": {
+   "mode": "755",
+   "sha256": "cb3132679b018a82557bcd7231907a6fbe9c52cb1781c1f10b8e6e83959a0928"
   },
   "usr/local/bin/sunshine-gaming": {
    "mode": "755",
-   "sha256": "81a4ec96cd00e668f62799b6ce1ea2163fd711d9745b3a34f3e8525405f783e5"
+   "sha256": "b130cb4db7c29af6519006b3c77f05c5335e99812da3e278191101ac466eae6b"
   },
   "usr/local/bin/sunshine-hyprland-install": {
    "mode": "755",
@@ -62,19 +78,27 @@
   },
   "usr/local/bin/sunshine-kernel": {
    "mode": "755",
-   "sha256": "c8ebffdb9ad2b06abb72ebde1764187ab43287c1becbaba5ee73ac2de95c8699"
+   "sha256": "677db8e3ede6397240a1abb3713e6e006a884942c30812ae3465ca35900fb7d8"
   },
   "usr/local/bin/sunshine-live-setup": {
    "mode": "755",
    "sha256": "e6a79ec957205262e19f97f925086de617eeee71c0e9fd2f3ee195dec3bf9492"
   },
+  "usr/local/bin/sunshine-migrate": {
+   "mode": "755",
+   "sha256": "f3580a45933885cbfe3a3a686fa7e7434cf8bb621ab07ac3bd368c6aba575ae2"
+  },
   "usr/local/bin/sunshine-nixos-grub": {
    "mode": "755",
    "sha256": "8423158c314c805d1a3a277bad76e49d532960b3c122f666ec918b5c1a672f11"
   },
+  "usr/local/bin/sunshine-pacnew": {
+   "mode": "755",
+   "sha256": "f87b3c169b11be5fcbcc472ca217fd6302936da1eb47a6f8eae3f4ab7f70f2f9"
+  },
   "usr/local/bin/sunshine-performance": {
    "mode": "755",
-   "sha256": "57a1da549ca5c89c53844ca6e9125a7e54aacabef17548ed9416412473220198"
+   "sha256": "aff05ebb7bf93225ffd7a838b074b2ddd5dee70e89d745e0ebc5210d8973676a"
   },
   "usr/local/bin/sunshine-pet": {
    "mode": "755",
@@ -106,7 +130,11 @@
   },
   "usr/local/bin/sunshine-rescue": {
    "mode": "755",
-   "sha256": "a59d66ab0b375514545f8f3f430d1568c223ca272e178bec93bd45671e03243b"
+   "sha256": "3d3894cb6ac2e728a0283f68b939775e60155db1d475c3bfb29f008e7d2df520"
+  },
+  "usr/local/bin/sunshine-reset-plasma": {
+   "mode": "755",
+   "sha256": "bb0c95e46fed36cf3e361dea55e47f913a5242895ea3fa416df05d87e9e2f039"
   },
   "usr/local/bin/sunshine-restore-visuals": {
    "mode": "755",
@@ -132,6 +160,14 @@
    "mode": "755",
    "sha256": "7e6689ae4e0d97b5a653c908e97d54ebbf6e329ac1ab91a7e2dfd38963471ecb"
   },
+  "usr/local/bin/sunshine-state-hook": {
+   "mode": "755",
+   "sha256": "53c4c8e827a872a0c6f95cc65cd47ca5cf45b4720068bf255773ff6403d3e268"
+  },
+  "usr/local/bin/sunshine-support": {
+   "mode": "755",
+   "sha256": "1d9168a48c93adf98432b2fed113db8ad08f2cd25bc9ae35d774cd34813b8b62"
+  },
   "usr/local/bin/sunshine-term": {
    "mode": "755",
    "sha256": "0d2d4121fd3247e3f6e4a8d18406c1814ea5394fb04bbbbb0e3eda9b72cd9071"
@@ -142,11 +178,11 @@
   },
   "usr/local/bin/sunshine-toolbox": {
    "mode": "755",
-   "sha256": "6b70f75d245ac4ca1882922771b76207096260fbcffae5f316e9ed5c58214235"
+   "sha256": "7ea2f14c638a2d7e271bccfc2677aacc150411eb0f02fd5f73f33587eb6d5a22"
   },
   "usr/local/bin/sunshine-toolsync": {
    "mode": "755",
-   "sha256": "73afb4b8eecf6e3cc2bf81bdb22603c4e3d2b5f09f01fbd29d1df3413a9cca34"
+   "sha256": "c075322a03d9b5527588932d3a8a3f54684351aaf333552c94984fa3fa8bfa80"
   },
   "usr/local/bin/sunshine-topbar": {
    "mode": "755",
@@ -166,7 +202,7 @@
   },
   "usr/local/bin/sunshine-update-run": {
    "mode": "644",
-   "sha256": "a7f3730a22d206eacef957c5715b2d6602cb47bfd106df62ac04096c77fe1d3f"
+   "sha256": "c68d7f2004632fe01caf82a9becd59072a82c103564b17fe5bea53ea298dd279"
   },
   "usr/local/bin/sunshine-webapp": {
    "mode": "755",
@@ -195,6 +231,10 @@
   "usr/share/applications/sunshine-pods.desktop": {
    "mode": "644",
    "sha256": "d924364df976e7917ef64088a915b183b27e2af264301441103f4c6812f46549"
+  },
+  "usr/share/applications/sunshine-rescue.desktop": {
+   "mode": "644",
+   "sha256": "19edaf2e1d36ce343186b1597bca8147185b0699e5b2c1e33fb06b1db12b7630"
   },
   "usr/share/applications/sunshine-store.desktop": {
    "mode": "644",
@@ -236,6 +276,10 @@
    "mode": "644",
    "sha256": "fb9a91dd478051a015b4db10147b6ed38cdceae88ccb00532cb9c8661ebf8aa8"
   },
+  "usr/share/libalpm/hooks/94-sunshine-migrate.hook": {
+   "mode": "644",
+   "sha256": "3c87407cf9d681f7e7a906aa1ee3f049265e3cdc6e94bffcb740de2a030da21c"
+  },
   "usr/share/libalpm/hooks/95-sunshine-fastfetch.hook": {
    "mode": "644",
    "sha256": "ef41fd0ead0e7ec6dc11393e274022f1adc99884617581b83ea16ce07c85c82c"
@@ -243,6 +287,10 @@
   "usr/share/libalpm/hooks/96-sunshine-wallpapers.hook": {
    "mode": "644",
    "sha256": "35dda67636afa116155f834d07d9b6471d0f31e643b153bd50f75c905ece175a"
+  },
+  "usr/share/libalpm/hooks/98-sunshine-state.hook": {
+   "mode": "644",
+   "sha256": "ff56df6dc8451e83751cb615d1e99063a8685f05f198cadb13c164212b3c56f4"
   },
   "usr/share/plasma/look-and-feel/com.sunshineos.sunshine/contents/defaults": {
    "mode": "755",
@@ -314,8 +362,8 @@
   },
   "usr/share/sunshine/i18n/uk.tsv": {
    "mode": "644",
-   "sha256": "6027ddb8c8843e353866d716df33c55a41c8d678360057a89d74750c04b1f576"
+   "sha256": "380829c91f8f7c79bce5e963e00fbbfc78b38e4b14f0d99016fcbc2114497211"
   }
  },
- "version": "2026.11.19.89"
+ "version": "2026.11.19.126"
 }

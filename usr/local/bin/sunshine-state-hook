@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# pacman hook helper (the idea is Garuda's): after every transaction, record what sunshine-doctor needs to know without guessing later.
+#   /var/lib/sunshine/last_update       touched when packages were installed or upgraded (its date = last update; newer than the boot = restart pending)
+#   /var/lib/sunshine/initramfs_error   exists when a kernel has no usable initramfs (an interrupted or failed mkinitcpio): the system may not boot
+mkdir -p /var/lib/sunshine
+touch /var/lib/sunshine/last_update
+bad=
+for kd in /usr/lib/modules/*/; do
+  [ -f "$kd/vmlinuz" ] || continue
+  base=linux; [ -f "$kd/pkgbase" ] && base=$(cat "$kd/pkgbase")
+  [ -f "/boot/vmlinuz-$base" ] || bad="$bad vmlinuz-$base"
+  [ -s "/boot/initramfs-$base.img" ] || bad="$bad initramfs-$base.img"
+done
+if [ -n "$bad" ]; then printf 'missing:%s\n' "$bad" > /var/lib/sunshine/initramfs_error; echo "sunshine: the boot files are incomplete:$bad (run: sudo sunshine-doctor --fix)" >&2
+else rm -f /var/lib/sunshine/initramfs_error; fi
+exit 0

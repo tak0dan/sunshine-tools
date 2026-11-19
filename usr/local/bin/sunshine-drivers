@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# Sunshine OS drivers (after Garuda's hardware detection and EndeavourOS's nvidia-inst): looks at the hardware and installs what it needs.
+#   sunshine-drivers detect        what this computer has and what would be installed
+#   sunshine-drivers install       install it (asks nothing; needs internet; a restore point is made first on btrfs)
+#   sunshine-drivers auto          like install, quietly, only for real hardware; used after the first start (never in a virtual machine for GPU drivers)
+# Covers: NVIDIA (open kernel modules for Turing and newer, DKMS for every installed kernel, Wayland/modeset settings, PRIME for hybrid laptops),
+# Broadcom Wi-Fi, laptop power and thermal helpers, network discovery for printers and shares, virtual machine guest tools.
+[ "$(id -u)" -eq 0 ] || exec sudo "$0" "$@"
+# shellcheck disable=SC2034 # fallback colour names mirror ui.sh even when one is unused here
+[ -r /usr/local/lib/sunshine/ui.sh ] && . /usr/local/lib/sunshine/ui.sh || { sec() { echo "* $*"; }; ok() { echo "+ $*"; }; bad() { echo "x $*"; }; loc() { printf '%s' "$*"; }; Y=; G=; R=; B=; N=; }
+[ -d /run/archiso ] && { bad "$(loc "Run this on the installed system.")"; exit 1; }
+cmd=${1:-detect}
+QUIET=0; [ "$cmd" = auto ] && QUIET=1
+say_() { [ $QUIET = 1 ] || echo "$@"; }
+VIRT=$(systemd-detect-virt 2>/dev/null || true); [ "$VIRT" = none ] && VIRT=
+CPU=$(grep -m1 vendor_id /proc/cpuinfo | awk '{print $3}')
+PCI=$(lspci -nn 2>/dev/null)
+GPUS=$(printf '%s\n' "$PCI" | grep -E 'VGA|3D|Display')
+HAS_NV=0; HAS_IGPU=0
+printf '%s\n' "$GPUS" | grep -q '\[10de:' && HAS_NV=1
+printf '%s\n' "$GPUS" | grep -qE '\[(8086|1002):' && HAS_IGPU=1
+LAPTOP=0; ls /sys/class/power_supply/BAT* >/dev/null 2>&1 && LAPTOP=1
+nv_generation_ok() { printf '%s\n' "$GPUS" | grep -i nvidia | grep -qE '\b(TU|GA|AD|GB|GH)[0-9]{2,3}'; }   # Turing and newer: the open kernel module supports them
+plan() {   # prints the packages to install, one per line, with the reason after a tab
+  if [ -n "$VIRT" ]; then
+    case "$VIRT" in oracle) echo -e "virtualbox-guest-utils\tVirtualBox guest";; vmware) echo -e "open-vm-tools\tVMware guest";; kvm|qemu) echo -e "qemu-guest-agent\tQEMU guest"; echo -e "spice-vdagent\tQEMU guest";; esac
+    return
+  fi
+  if [ $HAS_NV = 1 ]; then
+    # Prebuilt modules (what EndeavourOS does) for the stock kernels: nothing is compiled during an update, so a kernel update can never leave the screen black.
+    # DKMS only for kernels that have no prebuilt package (zen, hardened ...). Cards before Turing need the legacy driver.
+    if nv_generation_ok; then
+      kk=$(pacman -Qq | grep -E '^linux(-lts|-zen|-hardened|-cachyos[a-z-]*)?$')
+      dk=0
+      for k in $kk; do case "$k" in linux) echo -e "nvidia-open\tNVIDIA open modules for linux";; linux-lts) echo -e "nvidia-open-lts\tNVIDIA open modules for linux-lts";; *) dk=1;; esac; done
+      [ $dk = 1 ] && echo -e "nvidia-open-dkms\tNVIDIA modules built for the other kernels (DKMS)"
+    else
+      if pacman -Si nvidia-580xx-dkms >/dev/null 2>&1; then echo -e "nvidia-580xx-dkms\tNVIDIA (older card: legacy driver)"; else echo -e "nvidia-dkms\tNVIDIA"; fi
+    fi
+    echo -e "nvidia-utils\tNVIDIA"; echo -e "nvidia-settings\tNVIDIA"
+    grep -q '^\[multilib\]' /etc/pacman.conf && echo -e "lib32-nvidia-utils\tNVIDIA 32-bit (Steam, Wine)"
+    [ $HAS_IGPU = 1 ] && echo -e "nvidia-prime\tHybrid graphics: prime-run starts a program on the NVIDIA card"
+    for k in $(pacman -Qq | grep -E '^linux(-lts|-zen|-hardened)?$'); do case "$k" in linux|linux-lts) ;; *) echo -e "$k-headers\tneeded to build the NVIDIA module for $k";; esac; done
+  fi
+  printf '%s\n' "$PCI" | grep -E 'Network|Wireless' | grep -qi 'broadcom' && echo -e "broadcom-wl-dkms\tBroadcom Wi-Fi"
+  if [ $LAPTOP = 1 ]; then
+    [ "$CPU" = GenuineIntel ] && echo -e "thermald\tIntel laptop: keeps it cool without throttling too early"
+    echo -e "power-profiles-daemon\tlaptop power profiles"
+  fi
+  echo -e "avahi\tnetwork discovery (printers, shares)"; echo -e "nss-mdns\t.local names"
+  lsusb 2>/dev/null | grep -qiE '06cb|27c6|138a|04f3:0c' && echo -e "fprintd\tfingerprint reader"
+}
+detect() {
+  echo "${Y}${B}$(loc "Hardware")${N}"
+  echo "  CPU: $CPU   $( [ $LAPTOP = 1 ] && echo "($(loc "laptop"))")  $( [ -n "$VIRT" ] && echo "($(loc "virtual machine"): $VIRT)")"
+  printf '%s\n' "$GPUS" | sed 's/^/  GPU: /'
+  echo "${Y}${B}$(loc "Would install")${N}"
+  plan | while IFS=$'\t' read -r p why; do pacman -Qq "$p" >/dev/null 2>&1 && st="${G}$(loc "installed")${N}" || st=; printf '  %-24s %-60s %s\n' "$p" "$why" "$st"; done
+}
+install_() {
+  local want=() p why
+  while IFS=$'\t' read -r p why; do pacman -Qq "$p" >/dev/null 2>&1 || want+=("$p"); done < <(plan)
+  [ ${#want[@]} -eq 0 ] && { say_ "$(loc "Everything this computer needs is already installed.")"; return 0; }
+  local avail=() miss=()
+  for p in "${want[@]}"; do pacman -Si "$p" >/dev/null 2>&1 && avail+=("$p") || miss+=("$p"); done
+  [ ${#miss[@]} -gt 0 ] && say_ "$(loc "not in the enabled repositories (skipped)"): ${miss[*]}"
+  [ ${#avail[@]} -gt 0 ] || return 0
+  if [ "$(findmnt -no FSTYPE /)" = btrfs ] && command -v snapper >/dev/null && [ -e /etc/snapper/configs/root ]; then snapper -c root create -d "before sunshine-drivers" >/dev/null 2>&1; fi
+  say_ "$(loc "Installing"): ${avail[*]}"
+  pacman -S --noconfirm --needed "${avail[@]}" >/tmp/sunshine-drivers.log 2>&1 || { [ $QUIET = 1 ] || { bad "$(loc "installation failed")"; tail -5 /tmp/sunshine-drivers.log; }; return 1; }
+  if printf '%s\n' "${avail[@]}" | grep -q '^nvidia'; then
+    # Wayland needs kernel mode setting; nouveau must not grab the card first
+    printf 'options nvidia_drm modeset=1 fbdev=1\noptions nvidia NVreg_PreserveVideoMemoryAllocations=1\n' > /etc/modprobe.d/sunshine-nvidia.conf
+    printf 'blacklist nouveau\n' > /etc/modprobe.d/sunshine-nouveau.conf
+    systemctl enable nvidia-suspend.service nvidia-resume.service nvidia-hibernate.service >/dev/null 2>&1
+    mkinitcpio -P >>/tmp/sunshine-drivers.log 2>&1
+  fi
+  if printf '%s\n' "${avail[@]}" | grep -q '^avahi$'; then
+    systemctl enable --now avahi-daemon.service >/dev/null 2>&1
+    grep -q 'mdns_minimal' /etc/nsswitch.conf || sed -i '/^hosts:/ s/resolve/mdns_minimal [NOTFOUND=return] resolve/' /etc/nsswitch.conf
+  fi
+  printf '%s\n' "${avail[@]}" | grep -q '^thermald$' && systemctl enable --now thermald.service >/dev/null 2>&1
+  printf '%s\n' "${avail[@]}" | grep -q '^fprintd$' && true
+  ok "$(loc "Drivers installed.") $(printf '%s\n' "${avail[@]}" | grep -q '^nvidia' && loc "Restart to use the NVIDIA driver.")"
+}
+case "$cmd" in
+  detect) detect ;;
+  install) install_ ;;
+  auto) install_ ;;
+  *) sed -n 2,8p "$0"; exit 2 ;;
+esac

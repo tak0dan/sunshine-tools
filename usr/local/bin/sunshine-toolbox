@@ -27,6 +27,7 @@ QPushButton:hover { background: #262f47; border-color: #ff9654; }
 QScrollArea { border: none; }
 """
 
+LIVE = os.path.isdir("/run/archiso")
 ON_BTRFS = subprocess.run(["findmnt", "-no", "FSTYPE", "/"], capture_output=True, text=True).stdout.strip() == "btrfs"
 
 
@@ -51,8 +52,14 @@ SECTIONS = [
     (tr("Keep it healthy"), [
         (tr("🔄  Update everything"), tr("System, apps and extras, with restore points"), lambda: run(["sunshine-update"]), True),
         (tr("🩺  Health check"), tr("Find and repair problems (identity, boot, packages, snapshots)"), lambda: term("sunshine-doctor --fix", "Health check"), True),
+        (tr("🔧  Something does not work"), tr("Network, sound, screen, graphics or disk space: check and repair"), lambda: term("sunshine-fix all", "Fix"), have("sunshine-fix")),
+        (tr("🆘  Get help"), tr("Make a report (personal data removed) to send to whoever helps you"), lambda: term("sunshine-support", "Support report"), have("sunshine-support")),
         (tr("🧹  Clean up"), tr("Free disk space: old downloads, unused packages, logs"), lambda: term("sunshine-cleanup", "Clean up"), True),
         (tr("📦  Fix the package manager"), tr("Lock file, keyring, mirrors, databases"), lambda: term("sunshine-fix-pacman", "Fix pacman"), True),
+    ]),
+    (tr("Protect my files"), [
+        (tr("💾  Back up my files"), tr("Encrypted backup of your home folder to a disk or folder you choose (first time: sunshine-backup init PATH)"),
+         lambda: term("sunshine-backup run || (echo; echo 'First time? Run: sunshine-backup init /path/to/backup-folder')", "Backup"), have("sunshine-backup") and not LIVE),
     ]),
     (tr("Go back in time"), [
         (tr("🛟  Restore points"), tr("Browse, restore or delete snapshots (Btrfs Assistant)"),
@@ -61,8 +68,18 @@ SECTIONS = [
          lambda: term("sunshine-snapshot create 'Before I tried something'", "Restore point"), ON_BTRFS),
     ]),
     (tr("Repair"), [
-        (tr("🥾  Repair the boot loader"), tr("Reinstall GRUB and rebuild boot files"), lambda: term("sunshine-boot-repair", "Boot repair"), True),
+        (tr("🛠  Rescue an installed system"), tr("From the live session: find the installed system and repair its boot, packages and kernel"),
+         lambda: term("sunshine-rescue", "Rescue"), LIVE and have("sunshine-rescue")),
+        (tr("🥾  Repair the boot loader"), tr("Reinstall GRUB and rebuild boot files"), lambda: term("sunshine-boot-repair", "Boot repair"), not LIVE),
+        (tr("🎨  Reset the desktop look"), tr("Theme, panels or icons look wrong? Put the Sunshine defaults back (your settings are saved first)"), lambda: term("sunshine-reset-plasma", "Reset desktop"), have("sunshine-reset-plasma") and not LIVE),
         (tr("🪪  Check the system identity"), tr("Make sure the system is still Sunshine OS"), lambda: term("sunshine-identity check; sunshine-identity apply", "Identity"), True),
+    ]),
+    (tr("Make it yours"), [
+        (tr("🎮  Gaming setup"), tr("Drivers for your card, Steam, Proton, Gamemode, MangoHud"), lambda: term("sunshine-gaming install", "Gaming"), have("sunshine-gaming") and not LIVE),
+        (tr("🐧  Kernels"), tr("Install and choose zen, LTS, hardened and other kernels"), lambda: term("sunshine-kernel list; echo; sunshine-kernel available", "Kernels"), have("sunshine-kernel") and not LIVE),
+        (tr("🔌  Drivers"), tr("Detect the hardware and install what it needs (NVIDIA, Wi-Fi, laptop helpers)"), lambda: term("sunshine-drivers detect; echo; sunshine-drivers install", "Drivers"), have("sunshine-drivers") and not LIVE),
+        (tr("⚡  Performance profile"), tr("Faster desktop and games: memory, disk, network tuning"), lambda: term("sunshine-performance on; sunshine-performance status", "Performance"), have("sunshine-performance") and not LIVE),
+        (tr("🖥  More desktops"), tr("GNOME, Xfce, Cinnamon, i3, Sway, Hyprland and more next to Plasma"), lambda: term("sunshine-desktops list", "Desktops"), have("sunshine-desktops") and not LIVE),
     ]),
     (tr("Know your computer"), [
         (tr("🖥  System information"), tr("Hardware, kernel, desktop, packages (paste it when asking for help)"),
