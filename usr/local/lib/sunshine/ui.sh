@@ -73,3 +73,46 @@ sun_run() {            # sun_run "label" cmd args...
   if [ $rc -eq 0 ]; then ok "$label"; else bad "$label"; tail -n 20 "$log"; fi
   rm -f "$log"; return $rc
 }
+
+# ---- internet check: several independent methods, so one blocked protocol never means "no internet" (ping alone is dropped by many networks,
+# virtual machines and firewalls). sun_online returns 0 when ANY method works and sets SUN_NET_METHOD to the one that did; on failure SUN_NET_WHY
+# says where it stops (link, route, DNS, HTTP, captive portal) so the message can be specific. sun_online_quick uses only the first method.
+sun_online_quick() { curl -fsI --max-time "${1:-6}" https://archlinux.org >/dev/null 2>&1; }
+sun_online() {
+  SUN_NET_METHOD=; SUN_NET_WHY=
+  local code body u
+  # 1. the main test: an HTTPS request to the package site (works through proxies and everything a browser can reach)
+  if sun_online_quick 6; then SUN_NET_METHOD="HTTPS archlinux.org"; return 0; fi
+  # 2. the Arch mirror network and a second host, plain HTTP and HTTPS (a different server, different port)
+  for u in https://geo.mirror.pkgbuild.com/ http://geo.mirror.pkgbuild.com/ https://www.gnu.org/; do
+    if curl -fsI --max-time 6 "$u" >/dev/null 2>&1; then SUN_NET_METHOD="HTTP(S) $u"; return 0; fi
+  done
+  # 3. the connectivity-check pages browsers use: HTTP 204 = free internet; a redirect (30x) means a captive portal (a login page)
+  for u in http://connectivity-check.ubuntu.com/ https://www.gstatic.com/generate_204 http://nmcheck.gnome.org/check_network_status.txt; do
+    code=$(curl -s -o /dev/null --max-time 6 -w '%{http_code}' "$u" 2>/dev/null)
+    case "$code" in 204) SUN_NET_METHOD="connectivity check $u"; return 0;; 30*) SUN_NET_WHY=portal;; esac
+  done
+  [ "$SUN_NET_WHY" = portal ] && return 1
+  # 4. NetworkManager's own verdict
+  if command -v nmcli >/dev/null 2>&1 && [ "$(nmcli -t networking connectivity check 2>/dev/null)" = full ]; then SUN_NET_METHOD="NetworkManager says full"; return 0; fi
+  # 5. a raw TCP connection to public addresses (no DNS, no HTTP): proves the route works even if names do not resolve
+  for u in 1.1.1.1:443 8.8.8.8:53 9.9.9.9:443; do
+    if timeout 4 bash -c "exec 3<>/dev/tcp/${u%:*}/${u#*:}" 2>/dev/null; then SUN_NET_METHOD="TCP $u"; SUN_NET_WHY=dns-or-http; return 0; fi
+  done
+  # 6. last resort: ping
+  for u in 1.1.1.1 8.8.8.8; do if ping -c1 -W3 "$u" >/dev/null 2>&1; then SUN_NET_METHOD="ping $u"; return 0; fi; done
+  # nothing worked: find out where it stops
+  if ! ip -4 route 2>/dev/null | grep -q '^default'; then SUN_NET_WHY=route
+  elif ! getent hosts archlinux.org >/dev/null 2>&1; then SUN_NET_WHY=dns
+  else SUN_NET_WHY=blocked; fi
+  return 1
+}
+sun_net_explain() {   # a sentence for the user after sun_online failed
+  case "${SUN_NET_WHY:-}" in
+    route) loc "This computer is not connected to a network (no route). Connect to Wi-Fi or a cable and try again.";;
+    dns) loc "Connected, but names do not resolve (DNS). Try: sunshine-fix network";;
+    portal) loc "A login page (captive portal) is blocking the internet: open a browser and sign in to the network first.";;
+    blocked) loc "A network is there but web requests do not get through (firewall, proxy or VPN?).";;
+    *) loc "No internet connection. Connect to Wi-Fi or a cable and try again.";;
+  esac
+}

@@ -319,7 +319,7 @@ esac
 sed -i 's/^#\?GRUB_DISTRIBUTOR=.*/GRUB_DISTRIBUTOR="Sunshine OS"/' /etc/default/grub
 sed -i '/^#\?GRUB_THEME=/d;/^#\?GRUB_GFXMODE=/d;/^#\?GRUB_TERMINAL_OUTPUT=/d' /etc/default/grub
 printf '%s\n' 'GRUB_DISABLE_OS_PROBER=false' 'GRUB_THEME="/usr/share/grub/themes/sunshine/theme.txt"' 'GRUB_GFXMODE=auto' 'GRUB_TERMINAL_OUTPUT=gfxterm' 'GRUB_GFXPAYLOAD_LINUX=keep' 'GRUB_DISABLE_BOOTNEXT=true' >> /etc/default/grub
-sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT="quiet splash loglevel=3 vt.default_red=11,243,166,249,137,245,148,205,88,243,181,249,137,245,148,239 vt.default_grn=16,139,227,226,180,194,226,184,91,139,240,226,180,194,226,229 vt.default_blu=32,168,161,175,250,231,213,240,112,168,174,175,250,231,213,255"/' /etc/default/grub
+sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=6 vt.default_red=11,243,166,249,137,245,148,205,88,243,181,249,137,245,148,239 vt.default_grn=16,139,227,226,180,194,226,184,91,139,240,226,180,194,226,229 vt.default_blu=32,168,161,175,250,231,213,240,112,168,174,175,250,231,213,255"/' /etc/default/grub
 EOS
 echo "$USERNAME:$PASS" | chroot "$MNT" /bin/bash -c 'umask 077; cat > /root/.sunshine-cred'
 cat >> "$MNT/root/.sunshine-chroot.sh" <<'EOS'

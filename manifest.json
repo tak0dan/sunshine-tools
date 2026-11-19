@@ -2,7 +2,7 @@
  "files": {
   "usr/local/bin/sunshine-apps": {
    "mode": "755",
-   "sha256": "0f516c80b8e4b077830e6df0c592434e2a813436381d4aca8ce12752ae226815"
+   "sha256": "dd0e59f6107966d894b7808254e547fed3fbcf7551bd506535ef49e9044f5fe5"
   },
   "usr/local/bin/sunshine-backup": {
    "mode": "755",
@@ -78,7 +78,7 @@
   },
   "usr/local/bin/sunshine-install": {
    "mode": "755",
-   "sha256": "a8a5bb6e5b4e1e8fa94d8a88a7685713ac1438cec8a735475f1252d11475edc2"
+   "sha256": "250f5109e71140b716da0ea343bc6c63415450f34b28fd2118e1659f6a4dc61b"
   },
   "usr/local/bin/sunshine-kernel": {
    "mode": "755",
@@ -194,11 +194,11 @@
   },
   "usr/local/bin/sunshine-topbar": {
    "mode": "755",
-   "sha256": "9a8017756a16350fd45415ac607915b6aff25adca514e3fca460b9ae10576f03"
+   "sha256": "5ffee9d732bda5df12f825e117d50712f86d8de6a71cbeddb6338125c9053a47"
   },
   "usr/local/bin/sunshine-update": {
    "mode": "755",
-   "sha256": "3fff847295b0e8936080052306d9ce9c29dc5624d9d460804f6ffcba19d1b095"
+   "sha256": "ce6e8f23f29c0c16123ab671235c1208a7bd9f44fe281397ae821f5d39d9c593"
   },
   "usr/local/bin/sunshine-update-check": {
    "mode": "755",
@@ -210,7 +210,7 @@
   },
   "usr/local/bin/sunshine-update-run": {
    "mode": "755",
-   "sha256": "84cf21a634ad7762147e68e7ed91d1ab13bc27e13f0cfc8770e8b212ef690c72"
+   "sha256": "506a18ef1a86c07b1572bbbcdd0bbcaaea664fe2efa0baf9bb62fc565dd5a808"
   },
   "usr/local/bin/sunshine-webapp": {
    "mode": "755",
@@ -226,7 +226,7 @@
   },
   "usr/local/lib/sunshine/ui.sh": {
    "mode": "644",
-   "sha256": "f4629dc10e56d1f37e5463ac0bea6c02a412134858e407e38c33d196836051f7"
+   "sha256": "8456de9d54cccd9ae27e745eb3fbae0c1bac2027bc2489f7fbc8587c21fd76cc"
   },
   "usr/share/applications/sunshine-install.desktop": {
    "mode": "644",
@@ -373,5 +373,5 @@
    "sha256": "eff7918eaccd870a00a59285e487d82438e6d48f9e60c718df32e981d13e62d8"
   }
  },
- "version": "2026.11.19.197"
+ "version": "2026.11.19.203"
 }

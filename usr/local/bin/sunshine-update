@@ -1,3 +1,14 @@
 #!/usr/bin/env bash
-# GUI entry point: opens a terminal that runs the update with a polkit password prompt.
-exec konsole --hide-menubar -p tabtitle="Sunshine OS Update" -e pkexec /usr/local/bin/sunshine-update-run "$@"
+# Update the whole system (packages, AUR, Flatpak, tools).
+#   sunshine-update          from a terminal: runs right here, in the same terminal (asks for your password once)
+#                            from the menu or a launcher (no terminal): opens a Sunshine OS Update window
+#   sunshine-update --window force the separate window even when started from a terminal
+run=/usr/local/bin/sunshine-update-run
+if [ "${1:-}" = --window ]; then shift
+elif [ -t 0 ] && [ -t 1 ]; then
+  export SUNSHINE_UPDATE_HERE=1
+  if [ "$(id -u)" -eq 0 ]; then exec "$run" "$@"; fi
+  if command -v sudo >/dev/null 2>&1; then exec sudo SUNSHINE_UPDATE_HERE=1 "$run" "$@"; fi
+  exec pkexec env SUNSHINE_UPDATE_HERE=1 "$run" "$@"
+fi
+exec konsole --hide-menubar -p tabtitle="Sunshine OS Update" -e pkexec "$run" "$@"
