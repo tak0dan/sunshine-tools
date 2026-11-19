@@ -194,7 +194,7 @@
   },
   "usr/local/bin/sunshine-topbar": {
    "mode": "755",
-   "sha256": "448dbaec99f3d780337cb9c7f58d3e4ed6f711af6002eb092fafe3bae0447e73"
+   "sha256": "df86c4ab07978aaf7a7233eaf011e248e7e37c783e7ce98e2d855be3af03b438"
   },
   "usr/local/bin/sunshine-update": {
    "mode": "755",
@@ -397,5 +397,5 @@
    "sha256": "5159a4f987786cab822d09a194d16650de39c550589435567390496c74aee1a5"
   }
  },
- "version": "2026.11.19.218"
+ "version": "2026.11.19.219"
 }
