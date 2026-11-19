@@ -7,6 +7,7 @@ All done	Усе готово
 Press Enter to close this window.	Натисніть Enter, щоб закрити це вікно.
 Another update or install is running. Close it and try again.	Зараз виконується інше оновлення чи встановлення. Закрийте його й спробуйте ще раз.
 No internet connection. Connect to Wi-Fi or a cable and try again.	Немає інтернету. Підключіться до Wi-Fi або кабелю й спробуйте ще раз.
+No HTTPS access to the Arch repositories. Check the network/proxy and try again.	Немає HTTPS-доступу до репозитаріїв Arch. Перевірте мережу/проксі й спробуйте ще раз.
 No system package updates right now.	Оновлень системних пакунків зараз немає.
 Lock file	Файл блокування
 Keyring	Ключі пакунків

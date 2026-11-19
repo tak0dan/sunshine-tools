@@ -370,8 +370,8 @@
   },
   "usr/share/sunshine/i18n/uk.tsv": {
    "mode": "644",
-   "sha256": "eff7918eaccd870a00a59285e487d82438e6d48f9e60c718df32e981d13e62d8"
+   "sha256": "ed326dc0a48ad450748ec1de85d80ef466920ddbb50f19f1fd40c24def77fb89"
   }
  },
- "version": "2026.11.19.203"
+ "version": "2026.11.19.211"
 }
