@@ -78,7 +78,7 @@
   },
   "usr/local/bin/sunshine-install": {
    "mode": "755",
-   "sha256": "250f5109e71140b716da0ea343bc6c63415450f34b28fd2118e1659f6a4dc61b"
+   "sha256": "06bf1cd35fecbe9087ce6cd4021ab9187364ec92ee9a890277c894f38126d4e0"
   },
   "usr/local/bin/sunshine-kernel": {
    "mode": "755",
@@ -118,7 +118,7 @@
   },
   "usr/local/bin/sunshine-post-install": {
    "mode": "755",
-   "sha256": "36aebc9ce93176fe7372bed3a1aefd226368e4492966a2f4f59b858a6fa5b772"
+   "sha256": "1b5b767dd4bc08819ce7a74b1510ed2e6011a09e22012b0e3d1ef852a111f334"
   },
   "usr/local/bin/sunshine-prompt": {
    "mode": "755",
@@ -210,7 +210,7 @@
   },
   "usr/local/bin/sunshine-update-run": {
    "mode": "755",
-   "sha256": "8b515f03ed8d92bd5ba5fc344afe3243139bc725cb6de4d22dae1b09188c1ddd"
+   "sha256": "567262a0abc0fe95f25c170d813b03ca74caa672058b73430c711746725e0e0c"
   },
   "usr/local/bin/sunshine-webapp": {
    "mode": "755",
@@ -421,5 +421,5 @@
    "sha256": "5159a4f987786cab822d09a194d16650de39c550589435567390496c74aee1a5"
   }
  },
- "version": "2026.11.20.5"
+ "version": "2026.11.20.240"
 }
