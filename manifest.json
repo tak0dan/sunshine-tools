@@ -210,7 +210,7 @@
   },
   "usr/local/bin/sunshine-update-run": {
    "mode": "755",
-   "sha256": "dc051c822e04e107de23223eb800581cd67a186efe3bda6f8f27e34816d4a569"
+   "sha256": "4fb5f84dfaa1f831191998c31fa8b5eb91ce3c1255a70a2cb379d94adda59199"
   },
   "usr/local/bin/sunshine-webapp": {
    "mode": "755",
@@ -230,7 +230,7 @@
   },
   "usr/local/lib/sunshine/ui.sh": {
    "mode": "644",
-   "sha256": "8456de9d54cccd9ae27e745eb3fbae0c1bac2027bc2489f7fbc8587c21fd76cc"
+   "sha256": "485e7a50b0168851f3b934ba070d65b2441cf1eef6fe320e785728e3cc5a88e2"
   },
   "usr/share/applications/sunshine-install.desktop": {
    "mode": "644",
@@ -374,7 +374,27 @@
   },
   "usr/share/sunshine/i18n/uk.tsv": {
    "mode": "644",
-   "sha256": "ed326dc0a48ad450748ec1de85d80ef466920ddbb50f19f1fd40c24def77fb89"
+   "sha256": "ec4b5c715451d449114edd24f0894ba94d56493a74ade31a7af7d5dfb2639403"
+  },
+  "usr/share/sunshine/logo-anim/README.md": {
+   "mode": "644",
+   "sha256": "3e94971b4c65463001d7081039be5239c2e5163791bf9fd573a136cf1c268ed8"
+  },
+  "usr/share/sunshine/logo-anim/loop-lite.png": {
+   "mode": "644",
+   "sha256": "c273c6ee6dd8e8f061d9e5ea2141e16a22150349750ef321a6c62db996169e90"
+  },
+  "usr/share/sunshine/logo-anim/play.py": {
+   "mode": "755",
+   "sha256": "4a88bb7fdd70487371f1c10e742ab89aa405e32b8d8fab20bd513784cf66b1d7"
+  },
+  "usr/share/sunshine/logo-anim/sprite-lite.json": {
+   "mode": "644",
+   "sha256": "c699557add080b6add2dc620d454b3c35edf21e1f9f4fed0596c2bb2d1be75de"
+  },
+  "usr/share/sunshine/logo-anim/sprite-lite.png": {
+   "mode": "644",
+   "sha256": "fa2541be167565f95a3058866d7b973931d9e7070d41778b531068e80926d770"
   },
   "usr/share/sunshine/migrations/0001-topbar-without-window-widget.sh": {
    "mode": "755",
@@ -401,5 +421,5 @@
    "sha256": "5159a4f987786cab822d09a194d16650de39c550589435567390496c74aee1a5"
   }
  },
- "version": "2026.11.19.221"
+ "version": "2026.11.20.4"
 }
