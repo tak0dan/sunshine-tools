@@ -2,7 +2,7 @@
  "files": {
   "usr/local/bin/sunshine-apps": {
    "mode": "755",
-   "sha256": "dd0e59f6107966d894b7808254e547fed3fbcf7551bd506535ef49e9044f5fe5"
+   "sha256": "20f12890e4ac44f05098a71077de3a70d1a83504f9306479248004fc2e032e8d"
   },
   "usr/local/bin/sunshine-backup": {
    "mode": "755",
@@ -210,7 +210,7 @@
   },
   "usr/local/bin/sunshine-update-run": {
    "mode": "755",
-   "sha256": "4fb5f84dfaa1f831191998c31fa8b5eb91ce3c1255a70a2cb379d94adda59199"
+   "sha256": "8b515f03ed8d92bd5ba5fc344afe3243139bc725cb6de4d22dae1b09188c1ddd"
   },
   "usr/local/bin/sunshine-webapp": {
    "mode": "755",
@@ -421,5 +421,5 @@
    "sha256": "5159a4f987786cab822d09a194d16650de39c550589435567390496c74aee1a5"
   }
  },
- "version": "2026.11.20.4"
+ "version": "2026.11.20.5"
 }
